@@ -1,0 +1,30 @@
+- Create audio element
+- Attach event listeners to audio element
+- Create media source (probably need a wrapper class to control this)
+- Create object URL for media source and add to audio element
+- Add and retrieve source buffer from media source (async)
+- Play/load/start media
+- Get media metadata (async)
+- Set up/init internal stream object using metadata
+- Start streaming data to our stream object on a loop until all chunks are fetched
+
+STREAM OBJECT AND CONTROLLER:
+- Stream object should use a wrapped controller that pumps data into the stream, based on the stream metadata.
+- The stream object should be largely immutable outside of appending data chunks and modifying its status. Does virtually nothing to mutate itself, but does have methods for calculating contentsize, etc
+- Chunk fetch is done using fetch() and byte-range requests, which returns arrayBuffers (async)
+- Throttle the requests by a margin of time (1 - 2 secs) and recurse to first step
+
+MEDIA SOURCE CONTROLLER:
+- Media source is wrapped by a custom object that controls adding, removing byte data etc. based on the play-status of the media.
+- Once play/loading is initiated by the user, it requests a chunk from the stream object and appends it to the buffer (async)
+- Remove data from before playcursor to or stop appending stay within buffer size
+- Recurse to above (request next chunk)
+
+CONSIDERATIONS:
+- Rather than using HEAD-request to get media data, query a CFM-file that gives you back better data instead
+- Check for mime type support before attempting to create a stream object for the audio track
+- Use either callbacks for Promises or - when sequential code that blocks is required - use async functions
+- Figure out how to synchronize the media source with the stream. When requesting next chunk - and it isn't there/ready - what to do then? How do we track how much data is buffered in the media source and what chunk to request next?
+- If a chunk download is missed/fails on the stream controller, what to do?
+- On each appendBuffer(), calculate and/or set the duration on the media source, or it gets set to Infinity again
+- When managing the media source buffer, figure out how to remove data from before the play cursor and how much. Keep the first 30 seconds no matter what? Keep how much before the play cursor and how much in front?

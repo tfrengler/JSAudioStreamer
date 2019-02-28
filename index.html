@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>StreamReader</title>
+    <meta content="text/html; charset=utf-8" http-equiv="Content-Type" />
+    <meta name="author" content="Thomas Frengler" />
+
+    <script type="text/javascript" src="StreamController.js"></script>
+    <script type="text/javascript" src="AudioStream.js"></script>
+
+</head>
+
+	<body>
+
+        <section id="controls" >
+            <span><button id="play" >PLAY/RESUME</button></span>
+            <span> | </span>
+            <span><button id="pause" >PAUSE</button></span>
+        </section>
+
+        <section id="trackData" >
+
+            <p><b>TRACK DATA:</b></p>
+            <ul>
+
+                <li>Time: <span id="currentTime">Unknown</span> | <span id="duration">Unknown</span></li>
+                <li>Title: <span id="duration">Unknown</span></li>
+                <li>Artist: <span id="duration">Unknown</span></li>
+                <li>Album: <span id="duration">Unknown</span></li>
+                <li>Genre: <span id="duration">Unknown</span></li>
+                <li>Year: <span id="duration">Unknown</span></li>
+                
+            </ul>
+        </section>
+
+        <section id="internalStream" >
+            <p><b>INTERNAL STREAM:</b></p>
+            
+            <span>BUFFER: </span>
+            <span><progress id="buffer" value="0" max="100" ></progress> <span id="streamBufferPercentage">0%</span></span>
+            <ul>
+
+                <li>Content size: <span id="contentSize"></span></li>
+                <li>Seconds buffered: <span id="secondsBuffered">0</span></li>
+                <li>Bytes buffered: <span id="bytesBuffered">0</span></li>
+                
+            </ul>
+        </section>
+
+        <section id="browserMediaBuffer" >
+            <p><b>BROWSER MEDIA BUFFER:</b></p>
+            
+            <span>BUFFER: </span>
+            <span>
+                <progress id="mediaBuffer" value="0" max="100" ></progress>
+                <span id="mediaBufferPercentage">0%</span>
+            </span>
+
+            <!-- <ul>
+                <li>Content size: <span id="contentSize"></span></li>
+                <li>Seconds buffered: <span id="secondsBuffered">0</span></li>
+                <li>Bytes buffered: <span id="bytesBuffered">0</span></li>
+            </ul> -->
+        </section>
+		
+	</body>
+</html>
