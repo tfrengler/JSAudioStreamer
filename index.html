@@ -6,17 +6,35 @@
     <meta content="text/html; charset=utf-8" http-equiv="Content-Type" />
     <meta name="author" content="Thomas Frengler" />
 
+    <script type="text/javascript" src="Interface.js"></script>
     <script type="text/javascript" src="StreamController.js"></script>
+    <script type="text/javascript" src="MediaController.js"></script>
     <script type="text/javascript" src="AudioStream.js"></script>
+    <script type="text/javascript" src="init.js"></script>
 
+    <script>
+        window.onload = function() {
+            console.log("Initializing...");
+            init();
+        };
+    </script>
 </head>
 
 	<body>
-
+            
         <section id="controls" >
-            <span><button id="play" >PLAY/RESUME</button></span>
-            <span> | </span>
-            <span><button id="pause" >PAUSE</button></span>
+            <p>
+                <span><button id="play" >PLAY/RESUME</button></span>
+                <span> | </span>
+                <span><button id="pause" >PAUSE</button></span>
+            </p>
+
+            <span><b>PLAYLIST:</b></span>
+            <ul id="playlist">
+                <li><button class="audioTrack" data-trackID="Devin Townsend Project - The Mighty Masturbator">Devin Townsend Project - The Mighty Masturbator</button></li>
+                <li><button class="audioTrack" data-trackID="The Police - Roxanne">The Police - Roxanne</button></li>
+                <li><button class="audioTrack" data-trackID="The Who - You Better You Bet">The Who - You Better You Bet</button></li>
+            </ul>
         </section>
 
         <section id="trackData" >
@@ -38,13 +56,10 @@
             <p><b>INTERNAL STREAM:</b></p>
             
             <span>BUFFER: </span>
-            <span><progress id="buffer" value="0" max="100" ></progress> <span id="streamBufferPercentage">0%</span></span>
+            <span><progress id="streamBuffer" value="0" max="100" ></progress> <span id="streamBufferPercentage">0%</span></span>
             <ul>
-
-                <li>Content size: <span id="contentSize"></span></li>
-                <li>Seconds buffered: <span id="secondsBuffered">0</span></li>
-                <li>Bytes buffered: <span id="bytesBuffered">0</span></li>
-                
+                <li>Content size: <span id="streamContentSize">0</span></li>
+                <li>Bytes buffered: <span id="streamBytesBuffered">0</span></li>
             </ul>
         </section>
 
@@ -57,11 +72,10 @@
                 <span id="mediaBufferPercentage">0%</span>
             </span>
 
-            <!-- <ul>
-                <li>Content size: <span id="contentSize"></span></li>
+            <ul>
                 <li>Seconds buffered: <span id="secondsBuffered">0</span></li>
                 <li>Bytes buffered: <span id="bytesBuffered">0</span></li>
-            </ul> -->
+            </ul>
         </section>
 		
 	</body>
