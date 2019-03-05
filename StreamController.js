@@ -4,7 +4,7 @@ const StreamController = function() {
 
     // NOT_STARTED, IN_PROGRESS, ABORTED, COMPLETED
     this.state = "NOT_STARTED";
-    this.THROTTLE = 500; // ms
+    this.THROTTLE = 0; // ms
     this.CHUNK_SIZE = 512 * 1000; // Kb
     this.STREAM_REQUEST_ENTRY_POINT = "GetAudio.cfm";
     this.stream = {}; // Instance of AudioStream
@@ -13,10 +13,6 @@ const StreamController = function() {
     this.ABORT_CONTROLLER = new AbortController() || {ERROR: true};
 
     return Object.seal(this);
-};
-
-StreamController.prototype.wait = function(ms) {
-    return new Promise((resolve, reject)=> setTimeout(resolve, parseFloat(ms) || 0));
 };
 
 StreamController.prototype.getNextChunk = function() {
@@ -117,7 +113,7 @@ StreamController.prototype.throttle = function() {
 
         let throttleAmount = Math.floor(this.THROTTLE - updateDifference + 5);
         console.warn(`Stream was updated less than ${this.THROTTLE}ms ago (${Math.ceil(updateDifference)}ms). Throttling next request by ${throttleAmount}ms`);
-        this.wait(throttleAmount).then(()=> this.throttle());
+        wait(throttleAmount).then(()=> this.throttle());
 
         return false;
     };
@@ -183,9 +179,13 @@ StreamController.prototype.load = function(id) {
 
         this.reset();
         this.stream = new AudioStream(decodedResponse, this.CHUNK_SIZE, id);
+
         // INTERFACE UPDATE
-        view.onAudioStreamSizeUpdate();
+        view.onNewStreamLoaded();
         console.log(`AudioStream with id '${id}' is ready to receive data`);
+        this.start();
+
+        mediaController.load(this.stream.METADATA.mimeType);
 
         return true;
     })

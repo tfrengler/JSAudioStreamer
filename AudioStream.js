@@ -7,6 +7,7 @@ const AudioStream = function(metadata, chunkSize, id) {
     this.SIZE = parseInt(this.METADATA.size) || 0;
     this.CHUNKS_EXPECTED = Math.floor(this.SIZE / chunkSize) || 0;
     this.CHUNKS = [];
+    this.BYTES_PER_SECOND = this.SIZE / this.METADATA.length || 0.0;
 
     const _calculateBufferedBytes = function(self) {
         let finalBufferedSize = 0;

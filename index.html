@@ -42,12 +42,12 @@
             <p><b>TRACK DATA:</b></p>
             <ul>
 
-                <li>Time: <span id="currentTime">Unknown</span> | <span id="duration">Unknown</span></li>
-                <li>Title: <span id="duration">Unknown</span></li>
-                <li>Artist: <span id="duration">Unknown</span></li>
-                <li>Album: <span id="duration">Unknown</span></li>
-                <li>Genre: <span id="duration">Unknown</span></li>
-                <li>Year: <span id="duration">Unknown</span></li>
+                <li>Time: <span id="currentTime">Unknown</span> | <b><span id="duration">Unknown</span></li></b>
+                <li>Title: <b><span id="title">Unknown</span></li></b>
+                <li>Artist: <b><span id="artist">Unknown</span></li></b>
+                <li>Album: <b><span id="album">Unknown</span></li></b>
+                <li>Genre: <b><span id="genre">Unknown</span></li></b>
+                <li>Year: <b><span id="year">Unknown</span></li></b>
                 
             </ul>
         </section>
@@ -68,13 +68,14 @@
             
             <span>BUFFER: </span>
             <span>
-                <progress id="mediaBuffer" value="0" max="100" ></progress>
-                <span id="mediaBufferPercentage">0%</span>
+                <meter id="mediaBuffer" min="0" value="0" max="0" ></meter>
+                <span id="bytesBuffered">0</span>
             </span>
 
             <ul>
+                <li>Buffer max size: <span id="mediaBufferSize" >0 bytes</span></li>
                 <li>Seconds buffered: <span id="secondsBuffered">0</span></li>
-                <li>Bytes buffered: <span id="bytesBuffered">0</span></li>
+                <li>Buffered until: <span id="secondsBufferedUntil">0</span></li>
             </ul>
         </section>
 		
