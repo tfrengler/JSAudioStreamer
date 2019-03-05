@@ -1,33 +1,38 @@
 "use strict";
 
 const MediaController = function() {
-
-    // READY, BUFFERING, STALLED, WAITING, COMPLETED
-    this.state = "READY";
+    
     this.BUFFER_MAX_SIZE = 10485760 ; //bytes
-    this.BUFFER_TRIM_INTERVAL = 30000; //ms;
     this.UPDATE_INTERVAL = 500; //ms
+    this.BUFFER_LOCK_RETRY = 1000; //ms
+    this.BUFFER_AHEAD_SECONDS = 20; //seconds
+    this.BUFFER_TRIM_SECONDS = 60; //seconds
     this.AUDIO_FACADE = new Audio() || {ERROR: true};
     this.AUDIO_FACADE.setAttribute("preload", "metadata");
 
     this.MEDIA_SOURCE = new MediaSource() || {ERROR: true};
-    this.MEDIA_SOURCE.addEventListener('sourceopen', ()=> console.log("Media source ready to receive buffers"));
+    this.MEDIA_SOURCE.addEventListener('sourceopen', ()=> console.log("MEDIA: Source ready to receive buffers"));
     this.AUDIO_FACADE.src = URL.createObjectURL(this.MEDIA_SOURCE);
 
     this.status = Object.create(null);
+    // READY, BUFFERING, STALLED, WAITING, COMPLETED
+    this.status.state = "READY";
     this.status.buffer = {};
     this.status.lastUpdate = 0;
     this.status.bufferedBytes = 0.0;
     this.status.bufferedDuration = 0.0;
     this.status.bufferedUntil = 0.0;
     this.status.nextDataChunk = 0;
-    this.status.stalled = false;
-    this.status.running = false;
     this.status.dataChunksExpected = 0;
+    this.status.bufferStrategy = "";
+    this.status.durationUpdated = false;
+    this.status.bufferTrimmed = false;
     this.status.bufferLastTrimmed = 0;
     this.status.complete = function() {return this.nextDataChunk >= this.dataChunksExpected};
 
     // Event listeners
+    this.AUDIO_FACADE.addEventListener("durationchange", ()=> this.onDurationChange());
+    this.AUDIO_FACADE.addEventListener("pause", ()=> this.onPause());
     this.AUDIO_FACADE.addEventListener("canplay", ()=> this.onPlayable());
     this.AUDIO_FACADE.addEventListener("error", ()=> this.onError());
     this.AUDIO_FACADE.addEventListener("stalled", ()=> this.onStalled());
@@ -35,18 +40,25 @@ const MediaController = function() {
     this.AUDIO_FACADE.addEventListener("timeupdate", ()=> this.onPlaybackTimeChanged());
     this.MEDIA_SOURCE.addEventListener("sourceended", ()=> this.onSourceClosed());
 
-    document.querySelector("#mediaBufferSize").innerText = this.BUFFER_MAX_SIZE + " bytes";
-    document.querySelector("#mediaBuffer").max = this.BUFFER_MAX_SIZE;
-    document.querySelector("#mediaBuffer").high = (this.BUFFER_MAX_SIZE / 100) * 70;
-    document.querySelector("#mediaBuffer").low = (this.BUFFER_MAX_SIZE / 100) * 30;
+    // View stuff
+    view.onMediaControllerInit();
 
     Object.seal(this.status);
     return Object.freeze(this);
 };
 
+MediaController.prototype.onDurationChange = function() {
+    console.log("MEDIA: Full duration should be known now");
+};
+
+MediaController.prototype.onPause = function() {
+    console.log("MEDIA: Playback paused");
+    // if (this.AUDIO_FACADE.duration === Infinity && this.AUDIO_FACADE.currentTime >= Math.floor(this.status.bufferedUntil))
+    //     this.onPlaybackEnded();
+};
+
 MediaController.prototype.onPlayable = function() {
-    console.log("Enough data to play media");
-    
+    console.log("MEDIA: Enough data to play media");
     this.AUDIO_FACADE.play();
 };
 
@@ -55,42 +67,56 @@ MediaController.prototype.onError = function(error) {
 };
 
 MediaController.prototype.onStalled = function() {
-    console.warn("Playback has stalled");
-    this.state = "STALLED";
+    console.warn("MEDIA: Playback has stalled");
+    this.status.state = "STALLED";
+    mediaController.notifyOnChunkAvailability = true;
 };
 
 MediaController.prototype.onPlaybackEnded = function() {
-    console.log("Playback ended for current audio track");
+    // if (this.AUDIO_FACADE.currentTime < this.status.bufferedUntil) {
+    //     this.onStalled();
+    //     return;
+    // };
+
+    console.log("MEDIA: Playback ended for current audio track");
 };
 
 MediaController.prototype.onSourceClosed = function() {
-    console.warn("Media source closed. No more data can be appended to the buffer");
+    console.warn("MEDIA: Source closed. No more buffers can be created and no more data can be appended");
 };
 
 MediaController.prototype.onPlaybackTimeChanged = function() {
     if (performance.now() - this.status.lastPlaytimeUpdate < 1000)
         return;
 
+    this.status.bufferTrimmed = performance.now();
     view.onPlaybackTimeChanged();
+
+    if (this.status.bufferStrategy === "INCREMENT" && this.status.state !== "STALLED")
+        this.bufferIncrementally();
 };
 
 MediaController.prototype.reset = function() {
 
     view.onMediaBufferReset();
 
+    this.status.state = "READY";
     this.status.lastUpdate = 0;
     this.status.bufferedBytes = 0.0;
     this.status.bufferedDuration = 0.0;
     this.status.bufferedUntil = 0.0;
     this.status.nextDataChunk = 0;
-    this.status.stalled = false;
     this.status.dataChunksExpected = 0;
+    this.status.bufferStrategy = "";
+    this.status.durationUpdated = false;
+    this.status.bufferTrimmed = false;
+    this.status.bufferLastTrimmed = 0;
 
     if (this.status.buffer.constructor.name === "SourceBuffer")
         this.MEDIA_SOURCE.removeSourceBuffer(this.status.buffer);
     this.status.buffer = {};
     
-    console.log("MediaController reset to default state");
+    console.log("MEDIA: Controller reset to default state");
 };
 
 MediaController.prototype.calculateBufferedDuration = function() {
@@ -122,138 +148,193 @@ MediaController.prototype.calculateBufferedUntil = function() {
 };
 
 MediaController.prototype.onBufferUpdated = function() {
-    console.log("Media buffer updated");
+    // Challenge here is that the update-event is fired for append, remove and - apparently, surprisingly - also on duration changes 
+    console.log("MEDIA: Buffer updated (append, remove, etc)");
+
+    if (this.status.durationUpdated) {
+        this.status.durationUpdated = false;
+        return;
+    };
 
     this.calculateBufferedDuration();
     this.calculateBufferedUntil();
     view.onMediaBufferUpdate();
 
-    this.updateAudioBuffer();
+    if (this.status.bufferTrimmed) {
+        this.status.bufferTrimmed = false;
+        return;
+    };
+
+    if (this.status.bufferStrategy === "FILL" && this.status.state !== "STALLED")
+        this.bufferFully();
 };
 
 MediaController.prototype.load = function(mimeType) {
-
+    // If mimetype isn't supported, there's no need to go any further
     if (!MediaSource.isTypeSupported(mimeType))
         return {NOT_SUPPORTED: mimeType || false};
 
     this.reset();
     this.status.dataChunksExpected = streamController.stream.CHUNKS_EXPECTED || null;
+    // We need to rewrite this to create a new MediaSource, because when it's closed (.endofstream()), you can't re-open it
     this.status.buffer = this.MEDIA_SOURCE.addSourceBuffer(mimeType);
     this.status.buffer.addEventListener("update", ()=> this.onBufferUpdated());
+    this.MEDIA_SOURCE.duration = streamController.stream.METADATA.length;
+    this.status.state = "READY";
 
-    console.log(`MediaController initialized and ready to stream data (${mimeType})`);
+    console.log(`MEDIA: Controller initialized and ready to stream data (${mimeType})`);
     return true;
 };
 
 MediaController.prototype.updateAudioBuffer = function() {
+    console.log(`MEDIA: Updating buffer (chunk ${this.status.nextDataChunk + 1} out of ${this.status.dataChunksExpected})`);
 
-    if (!this.status.running)
-        return false;
-
-    if (this.status.complete()) {
-
-        if (this.status.buffer.updating) {
-            console.warn("Buffer is locked, retrying in a moment...");
-            wait(1000).then(()=> this.updateAudioBuffer());
-            return;
-        };
-
-        console.log("Last data chunk appended, closing media buffer");
-        this.MEDIA_SOURCE.endOfStream();
-        return true;
-    };
-
-    console.log(`Updating audio buffer (chunk ${this.status.nextDataChunk + 1} out of ${this.status.dataChunksExpected})`);
-
-    const updated = performance.now();
-    const updateDifference = updated - this.status.lastUpdate;
-
-    if (updateDifference < this.UPDATE_INTERVAL && !this.status.complete()) {
-        console.warn(`Buffer updated less than ${this.UPDATE_INTERVAL}ms ago (${Math.ceil(updateDifference)}ms). Throttling`);
-
-        wait(this.UPDATE_INTERVAL).then(()=> this.updateAudioBuffer());
-        return false;
+    if (this.status.buffer.updating) {
+        console.warn("MEDIA: Buffer is locked, retrying in a moment");
+        
+        wait(this.BUFFER_LOCK_RETRY).then(()=> this.updateAudioBuffer());
+        return;
     };
 
     const dataChunk = streamController.stream.CHUNKS[this.status.nextDataChunk] || null;
+
     if (!dataChunk) {
-        console.warn("Next data chunk isn't available. Media buffering has stalled");
-        this.status.stalled = true;
+        console.warn("MEDIA: Next data chunk isn't available. Buffering has stalled");
+        this.status.state = "STALLED";
+        streamController.notifyOnChunkAvailability = true;
         return false;
     };
 
-    const bufferOverflow = (this.status.bufferedBytes + dataChunk.byteLength) > this.BUFFER_MAX_SIZE;
+    console.log(`MEDIA: Appending data chunk to buffer (${dataChunk.byteLength} bytes)`);
 
-    if ( bufferOverflow ) {
-        let bufferOverflowAmount = (this.status.bufferedBytes + dataChunk.byteLength) - this.BUFFER_MAX_SIZE;
-        console.warn(`Next data chunk would overflow the media buffer by ${Math.round(bufferOverflowAmount)} bytes. Need to trim the buffer`);
-        this.handleBufferOverflow();
-        return false;
-    };
-
-    console.log(`Appending data chunk ${this.status.nextDataChunk + 1} to media buffer (${dataChunk.byteLength})`);
-    this.status.buffer.appendBuffer(dataChunk);
-    
     this.status.nextDataChunk++;
     this.status.bufferedBytes = this.status.bufferedBytes + dataChunk.byteLength;
+    this.status.buffer.appendBuffer(dataChunk);
     this.status.lastUpdate = performance.now();
 
     return true;
 };
 
-MediaController.prototype.handleBufferOverflow = function() {
-
-    const playCursor = this.AUDIO_FACADE.currentTime;
-    var milisecondsBeforeRetry = 0;
-    const minSecondsBeforeRemove = 30;
-    const lastUpdateDifference = performance.now() - this.status.bufferLastTrimmed;
-
-    if (playCursor < minSecondsBeforeRemove || lastUpdateDifference < this.BUFFER_TRIM_INTERVAL) {
-        milisecondsBeforeRetry = this.BUFFER_TRIM_INTERVAL;
-
-        console.warn(`Cannot trim the buffer yet. The media's current playtime is either less than ${minSecondsBeforeRemove} seconds, or it's been less than ${this.BUFFER_TRIM_INTERVAL}ms since last time we trimmed (${lastUpdateDifference}). Trying again later (${milisecondsBeforeRetry}ms)`);
-        wait(milisecondsBeforeRetry).then(()=> this.handleBufferOverflow());
-        
-        return false;
-    };
-
-    const secondToRemoveStart = 0;
-    const secondToRemoveEnd = playCursor - 5;
-    const bytesToRemoveFromBuffer = streamController.stream.BYTES_PER_SECOND * (secondToRemoveStart + secondToRemoveEnd);
-
-    this.trimBuffer(secondToRemoveStart, secondToRemoveEnd, bytesToRemoveFromBuffer);
-};
-
-MediaController.prototype.trimBuffer = function(start, end, bytes) {
-
-    console.log(`Attempting to remove ${Math.round(start + end)} seconds of data from the media buffer (roughly ${Math.round(bytes)} bytes)`);
+MediaController.prototype.trimBuffer = function(start, end) {
 
     if (this.status.buffer.updating) {
-        console.warn("Buffer is locked, retrying in a moment...");
+        console.warn("MEDIA: Buffer is locked, retrying in a second");
         
-        wait(1000).then(function() {this.trimBuffer(start, end, bytes)});
+        wait(this.BUFFER_LOCK_RETRY).then(()=> this.trimBuffer(start, end, bytes));
         return;
     };
 
-    this.status.bufferedBytes = this.status.bufferedBytes - bytes;
+    const removeDuration = end - start;
+    const bytesRemoved = streamController.stream.BYTES_PER_SECOND * removeDuration;
+
+    this.status.bufferedBytes = this.status.bufferedBytes - bytesRemoved;
+    console.log(`MEDIA: Attempting to remove ${Math.round(removeDuration)} seconds of data from the buffer (est. ${Math.round(bytesRemoved)} bytes)`);
+    
     this.status.buffer.remove(start, end);
-    this.status.bufferLastTrimmed = performance.now();
-    view.onMediaBufferUpdate();
+    this.status.bufferTrimmed = true;
+    this.status.bufferLastTrimmed = this.AUDIO_FACADE.currentTime;
 };
 
 MediaController.prototype.play = function() {
-    console.log("Starting playback and media buffering");
+    if (this.status.state !== "READY" && this.AUDIO_FACADE.paused) {
+        this.AUDIO_FACADE.play();
+        return;
+    };
 
-    // if (!this.status.running && !this.status.stalled)
-    //     this.AUDIO_FACADE.play();
-
-    this.status.running = true;
-    this.updateAudioBuffer();
+    console.log("MEDIA: Starting playback and audio data buffering");
+    this.prepare();
 };
 
 MediaController.prototype.stop = function() {
-    console.log("Stopping playback and media buffering");
-
+    console.log("MEDIA: Stopping playback");
     this.AUDIO_FACADE.pause();
-    this.status.running = false;
+};
+
+MediaController.prototype.prepare = function() {
+
+    if (streamController.stream.SIZE < this.BUFFER_MAX_SIZE) {
+        console.log(`MEDIA: Audio data is less than our buffer size (${streamController.stream.SIZE}), buffering fully`);
+        this.status.bufferStrategy = "FILL";
+        this.bufferFully();
+    }
+    else {
+        console.log(`MEDIA: Audio data is bigger than our buffer size (${streamController.stream.SIZE}), buffering incrementally`);
+        this.status.bufferStrategy = "INCREMENT";
+        this.bufferIncrementally();
+    };
+
+};
+
+MediaController.prototype.bufferFully = function() {
+
+    if (this.status.complete()) {
+        console.log("MEDIA: Buffer has been filled");
+        this.closeStream();
+        return true;
+    };
+
+    const lastUpdateDifference = performance.now() - this.status.lastUpdate;
+
+    if (lastUpdateDifference < this.UPDATE_INTERVAL) {
+        console.warn(`MEDIA: Buffer updated less than ${this.UPDATE_INTERVAL}ms ago (${Math.round(lastUpdateDifference)}ms). Throttling`);
+        wait(this.UPDATE_INTERVAL + 5).then(()=> this.bufferFully());
+        return false;
+    };
+
+    this.status.state = "BUFFERING";
+    this.updateAudioBuffer();
+};
+
+MediaController.prototype.bufferIncrementally = function() {
+
+    if (this.status.complete()) {
+        console.log("MEDIA: Buffer has been filled");
+        this.closeStream();
+        return true;
+    };
+
+    const playCursor = this.AUDIO_FACADE.currentTime;
+    const timeDifference = this.status.bufferedUntil - playCursor;
+
+    if (timeDifference < this.BUFFER_AHEAD_SECONDS) {
+        console.warn(`MEDIA: Less than ${this.BUFFER_AHEAD_SECONDS} playable seconds in buffer`);
+
+        if (playCursor - this.status.bufferLastTrimmed > this.BUFFER_TRIM_SECONDS) {
+            console.log(`MEDIA: More than ${this.BUFFER_AHEAD_SECONDS} seconds trail in buffer, trimming first`);
+            this.trimBuffer(this.status.buffer.buffered.start(0), playCursor - 5);
+            return;
+        };
+
+        this.status.state = "BUFFERING";
+        console.log(`MEDIA: Appending audio data to buffer`);
+        this.updateAudioBuffer();
+
+        return true;
+    };
+
+    console.log(`MEDIA: Enough data in buffer, waiting`);
+    this.status.state = "WAITING";
+};
+
+MediaController.prototype.closeStream = function() {
+
+    if (this.status.buffer.updating) {
+        console.warn("MEDIA: Buffer is locked, retrying in a moment");
+        wait(this.BUFFER_LOCK_RETRY).then(()=> this.closeStream());
+        return;
+    };
+
+    console.log("MEDIA: Closing buffer");
+    this.MEDIA_SOURCE.endOfStream();
+    this.status.state = "COMPLETED";
+
+    return true;
+};
+
+MediaController.prototype.nextChunkIsAvailable = function() {
+    this.status.state = "BUFFERING";
+
+    // Incremental will be auto-started once the next timeupdate event takes place
+    if (this.status.bufferStrategy === "FILL")
+        this.bufferFully();
 };

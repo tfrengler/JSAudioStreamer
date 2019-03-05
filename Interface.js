@@ -25,9 +25,9 @@ view.onNewStreamLoaded = function() {
 view.onMediaBufferUpdate = function() {
 
     document.querySelector("#mediaBuffer").value = mediaController.status.bufferedBytes;
-    document.querySelector("#secondsBuffered").innerText = mediaController.status.bufferedDuration;
+    document.querySelector("#secondsBuffered").innerText = Math.round(mediaController.status.bufferedDuration);
     document.querySelector("#bytesBuffered").innerText = Math.round(mediaController.status.bufferedBytes);
-    document.querySelector("#secondsBufferedUntil").innerText = mediaController.status.bufferedUntil;
+    document.querySelector("#secondsBufferedUntil").innerText = Math.round(mediaController.status.bufferedUntil);
 
 };
 
@@ -43,3 +43,10 @@ view.onMediaBufferReset = function() {
 view.onPlaybackTimeChanged = function() {
     document.getElementById("currentTime").innerText = Math.floor(mediaController.AUDIO_FACADE.currentTime);
 };
+
+view.onMediaControllerInit = function() {
+    document.querySelector("#mediaBufferSize").innerText = mediaController.BUFFER_MAX_SIZE + " bytes";
+    document.querySelector("#mediaBuffer").max = mediaController.BUFFER_MAX_SIZE;
+    document.querySelector("#mediaBuffer").high = (mediaController.BUFFER_MAX_SIZE / 100) * 70;
+    document.querySelector("#mediaBuffer").low = (mediaController.BUFFER_MAX_SIZE / 100) * 30;
+}

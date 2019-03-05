@@ -1,16 +1,18 @@
 "use strict";
 
 const StreamController = function() {
+    
+    this.THROTTLE = 500; // ms
+    this.CHUNK_SIZE = 512 * 1000; // Kb
+    this.STREAM_REQUEST_ENTRY_POINT = "GetAudio.cfm";
+    this.ABORT_CONTROLLER = new AbortController() || {ERROR: true};
 
     // NOT_STARTED, IN_PROGRESS, ABORTED, COMPLETED
     this.state = "NOT_STARTED";
-    this.THROTTLE = 0; // ms
-    this.CHUNK_SIZE = 512 * 1000; // Kb
-    this.STREAM_REQUEST_ENTRY_POINT = "GetAudio.cfm";
     this.stream = {}; // Instance of AudioStream
     this.abort = false;
     this.byteRequestOffset = 0;
-    this.ABORT_CONTROLLER = new AbortController() || {ERROR: true};
+    this.notifyOnChunkAvailability = false;
 
     return Object.seal(this);
 };
@@ -19,16 +21,16 @@ StreamController.prototype.getNextChunk = function() {
 
     if (this.stream.status.complete()) {
         this.state = "COMPLETED";
-        console.log("AudioStream-object data streaming is done");
+        console.log("STREAM: Data streaming is done, AudioStream is full");
         return true;
     };
 
     if (this.abort) {
-        console.warn("AudioStream-object data streaming aborted");
+        console.warn("STREAM: Data streaming aborted!");
         return false;
     };
 
-    console.log(`Fetching next data chunk (${this.stream.status.nextChunk + 1} out of ${this.stream.CHUNKS_EXPECTED})`);
+    console.log(`STREAM: Remotely fetching data chunk (${this.stream.status.nextChunk + 1} out of ${this.stream.CHUNKS_EXPECTED})`);
 
     let nextChunkByteStart = (this.stream.status.nextChunk * this.CHUNK_SIZE) + this.byteRequestOffset;
     let nextChunkByteEnd = 0;
@@ -39,13 +41,13 @@ StreamController.prototype.getNextChunk = function() {
         nextChunkByteEnd = nextChunkByteStart + this.CHUNK_SIZE;
 
     if ((isNaN(parseInt(nextChunkByteStart)) || parseInt(nextChunkByteStart) < 0) && !parseInt(nextChunkByteEnd)) {
-        console.error("Can't fetch data chunk. nextChunkByteStart or nextChunkByteStart aren't valid");
-        console.log(`${nextChunkByteStart} | ${nextChunkByteEnd}`);
+        console.error("STREAM: Can't fetch data chunk. nextChunkByteStart or nextChunkByteStart aren't valid");
+        console.warn(`${nextChunkByteStart} | ${nextChunkByteEnd}`);
         this.stop();
         return false;
     };
 
-    console.log(`Initiate GET request to fetch byte ${nextChunkByteStart} to ${nextChunkByteEnd || this.stream.SIZE}`);
+    console.log(`STREAM: Initiate GET request to fetch byte ${nextChunkByteStart} to ${nextChunkByteEnd || this.stream.SIZE}`);
 
     const headers = new Headers();
     headers.append("Accept", this.stream.METADATA.mimeType);
@@ -63,11 +65,11 @@ StreamController.prototype.getNextChunk = function() {
 
     window.fetch(request)
     .then((responseObject)=> {
-        console.log("Data fetched, converting to arrayBuffer");
+        console.log("STREAM: Audio data fetched, converting to arrayBuffer");
         return responseObject.arrayBuffer()
     })
     .then((decodedResponse)=> {
-        console.log(`Data converted, updating stream object (byte length: ${decodedResponse.byteLength})`);
+        console.log(`STREAM: Audio data converted, updating AudioStream (byte length: ${decodedResponse.byteLength})`);
         this.update(decodedResponse)
     })
     .catch(function(error) {
@@ -101,7 +103,7 @@ StreamController.prototype.update = function(arrayBuffer) {
 
     // INTERFACE UPDATE
     view.onInternalBufferUpdate();
-    console.log("Chunk data array appended to stream's buffer");
+    console.log("STREAM: Audio data array appended to buffer");
     this.throttle();
 };
 
@@ -136,7 +138,7 @@ StreamController.prototype.start = function() {
     if (["IN_PROGRESS","COMPLETED"].includes(this.state))
         return false;
 
-    console.log(`Beginning to pump data into AudioStream-object | chunk size: ${this.CHUNK_SIZE} | chunks expected ${this.stream.CHUNKS_EXPECTED} | content size: ${this.stream.SIZE}`);
+    console.log(`STREAM: Pumping data into AudioStream-object | chunk size: ${this.CHUNK_SIZE} | chunks expected ${this.stream.CHUNKS_EXPECTED} | content size: ${this.stream.SIZE}`);
     
     this.state = "IN_PROGRESS";
     this.getNextChunk();
@@ -145,7 +147,7 @@ StreamController.prototype.start = function() {
 };
 
 StreamController.prototype.reset = function() {
-    console.log("Resetting stream controller to its default state");
+    console.log("STREAM: Resetting controller to its default state");
 
     this.stop();
     this.stream = {};
@@ -159,7 +161,7 @@ StreamController.prototype.reset = function() {
 StreamController.prototype.load = function(id) {
     id = id || "ERROR";
 
-    console.log(`Request received to prepare stream for ID '${id}'`);
+    console.log(`STREAM: Request received to prepare stream for ID '${id}'`);
 
     const headers = new Headers();
     headers.append("Accept", "application/json");
@@ -182,7 +184,7 @@ StreamController.prototype.load = function(id) {
 
         // INTERFACE UPDATE
         view.onNewStreamLoaded();
-        console.log(`AudioStream with id '${id}' is ready to receive data`);
+        console.log(`STREAM: AudioStream with id '${id}' is ready to receive data`);
         this.start();
 
         mediaController.load(this.stream.METADATA.mimeType);
@@ -190,4 +192,9 @@ StreamController.prototype.load = function(id) {
         return true;
     })
     .catch((error)=> console.error(error));
+};
+
+StreamController.prototype.notifyMediaController = function() {
+    mediaController.nextChunkIsAvailable();
+    this.notifyOnChunkAvailability = false;
 };
