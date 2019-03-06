@@ -5,7 +5,7 @@ const MediaController = function() {
     this.BUFFER_MAX_SIZE = 10485760 ; //bytes
     this.UPDATE_INTERVAL = 500; //ms
     this.BUFFER_LOCK_RETRY = 1000; //ms
-    this.BUFFER_AHEAD_SECONDS = 20; //seconds
+    this.BUFFER_AHEAD_THRESHOLD = 10; //seconds
     this.BUFFER_TRIM_SECONDS = 60; //seconds
     this.AUDIO_FACADE = new Audio() || {ERROR: true};
     this.AUDIO_FACADE.setAttribute("preload", "metadata");
@@ -25,9 +25,10 @@ const MediaController = function() {
     this.status.nextDataChunk = 0;
     this.status.dataChunksExpected = 0;
     this.status.bufferStrategy = "";
-    this.status.durationUpdated = false;
+    this.status.lastPlaytimeUpdate = 0.0;
+    // this.status.durationUpdated = false;
     this.status.bufferTrimmed = false;
-    this.status.bufferLastTrimmed = 0;
+    this.status.bufferLastTrimmed = 0; //Seconds, corresponding to timestamp from the audio track's duration
     this.status.complete = function() {return this.nextDataChunk >= this.dataChunksExpected};
 
     // Event listeners
@@ -40,15 +41,12 @@ const MediaController = function() {
     this.AUDIO_FACADE.addEventListener("timeupdate", ()=> this.onPlaybackTimeChanged());
     this.MEDIA_SOURCE.addEventListener("sourceended", ()=> this.onSourceClosed());
 
-    // View stuff
-    view.onMediaControllerInit();
-
     Object.seal(this.status);
     return Object.freeze(this);
 };
 
 MediaController.prototype.onDurationChange = function() {
-    console.log("MEDIA: Full duration should be known now");
+    console.log(`MEDIA: Duration of audio track updated (${this.AUDIO_FACADE.duration})`);
 };
 
 MediaController.prototype.onPause = function() {
@@ -89,10 +87,15 @@ MediaController.prototype.onPlaybackTimeChanged = function() {
     if (performance.now() - this.status.lastPlaytimeUpdate < 1000)
         return;
 
-    this.status.bufferTrimmed = performance.now();
+    this.status.lastPlaytimeUpdate = performance.now();
     view.onPlaybackTimeChanged();
 
-    if (this.status.bufferStrategy === "INCREMENT" && this.status.state !== "STALLED")
+    if (this.status.appending === true) {
+        this.bufferUntil();
+        return;
+    };
+
+    if (this.status.bufferStrategy === "INCREMENT" && (this.status.state !== "STALLED" && this.status.state !== "COMPLETED"))
         this.bufferIncrementally();
 };
 
@@ -108,7 +111,7 @@ MediaController.prototype.reset = function() {
     this.status.nextDataChunk = 0;
     this.status.dataChunksExpected = 0;
     this.status.bufferStrategy = "";
-    this.status.durationUpdated = false;
+    // this.status.durationUpdated = false;
     this.status.bufferTrimmed = false;
     this.status.bufferLastTrimmed = 0;
 
@@ -147,25 +150,21 @@ MediaController.prototype.calculateBufferedUntil = function() {
     this.status.bufferedUntil = this.status.buffer.buffered.end(this.status.buffer.buffered.length - 1);
 };
 
-MediaController.prototype.onBufferUpdated = function() {
+MediaController.prototype.onBufferUpdated = function(event) {
     // Challenge here is that the update-event is fired for append, remove and - apparently, surprisingly - also on duration changes 
     console.log("MEDIA: Buffer updated (append, remove, etc)");
-
-    if (this.status.durationUpdated) {
-        this.status.durationUpdated = false;
-        return;
-    };
 
     this.calculateBufferedDuration();
     this.calculateBufferedUntil();
     view.onMediaBufferUpdate();
 
-    if (this.status.bufferTrimmed) {
+    if (this.status.bufferTrimmed === true) {
+        console.warn("MEDIA: Buffer update triggered by trimming");
         this.status.bufferTrimmed = false;
         return;
     };
 
-    if (this.status.bufferStrategy === "FILL" && this.status.state !== "STALLED")
+    if (this.status.bufferStrategy === "FILL" && (this.status.state !== "STALLED" && this.status.state !== "COMPLETED"))
         this.bufferFully();
 };
 
@@ -178,8 +177,8 @@ MediaController.prototype.load = function(mimeType) {
     this.status.dataChunksExpected = streamController.stream.CHUNKS_EXPECTED || null;
     // We need to rewrite this to create a new MediaSource, because when it's closed (.endofstream()), you can't re-open it
     this.status.buffer = this.MEDIA_SOURCE.addSourceBuffer(mimeType);
-    this.status.buffer.addEventListener("update", ()=> this.onBufferUpdated());
     this.MEDIA_SOURCE.duration = streamController.stream.METADATA.length;
+    this.status.buffer.addEventListener("update", (event)=> this.onBufferUpdated(event));
     this.status.state = "READY";
 
     console.log(`MEDIA: Controller initialized and ready to stream data (${mimeType})`);
@@ -296,11 +295,11 @@ MediaController.prototype.bufferIncrementally = function() {
     const playCursor = this.AUDIO_FACADE.currentTime;
     const timeDifference = this.status.bufferedUntil - playCursor;
 
-    if (timeDifference < this.BUFFER_AHEAD_SECONDS) {
-        console.warn(`MEDIA: Less than ${this.BUFFER_AHEAD_SECONDS} playable seconds in buffer`);
+    if (timeDifference < this.BUFFER_AHEAD_THRESHOLD) {
+        console.warn(`MEDIA: Less than ${this.BUFFER_AHEAD_THRESHOLD} playable seconds in buffer`);
 
         if (playCursor - this.status.bufferLastTrimmed > this.BUFFER_TRIM_SECONDS) {
-            console.log(`MEDIA: More than ${this.BUFFER_AHEAD_SECONDS} seconds trail in buffer, trimming first`);
+            console.warn(`MEDIA: More than ${this.BUFFER_TRIM_SECONDS} seconds trail in buffer, trimming first`);
             this.trimBuffer(this.status.buffer.buffered.start(0), playCursor - 5);
             return;
         };
@@ -324,9 +323,11 @@ MediaController.prototype.closeStream = function() {
         return;
     };
 
-    console.log("MEDIA: Closing buffer");
-    this.MEDIA_SOURCE.endOfStream();
-    this.status.state = "COMPLETED";
+    if (this.MEDIA_SOURCE.readyState === "open") {
+        console.log("MEDIA: Closing buffer");
+        this.MEDIA_SOURCE.endOfStream();
+        this.status.state = "COMPLETED";
+    };
 
     return true;
 };
@@ -337,4 +338,10 @@ MediaController.prototype.nextChunkIsAvailable = function() {
     // Incremental will be auto-started once the next timeupdate event takes place
     if (this.status.bufferStrategy === "FILL")
         this.bufferFully();
+};
+
+MediaController.prototype.bufferUntil = function() {
+
+
+
 };

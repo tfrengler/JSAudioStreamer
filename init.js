@@ -9,6 +9,7 @@ const init = function() {
     mediaController = new MediaController();
 
     setupInterfaceEvents();
+    view.onMediaControllerInit();
 
     console.log("Init done, ready to rock!");
 };

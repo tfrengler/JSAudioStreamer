@@ -2,7 +2,7 @@
 
 const StreamController = function() {
     
-    this.THROTTLE = 500; // ms
+    this.THROTTLE = 0; // ms
     this.CHUNK_SIZE = 512 * 1000; // Kb
     this.STREAM_REQUEST_ENTRY_POINT = "GetAudio.cfm";
     this.ABORT_CONTROLLER = new AbortController() || {ERROR: true};

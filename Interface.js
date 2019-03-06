@@ -41,12 +41,11 @@ view.onMediaBufferReset = function() {
 };
 
 view.onPlaybackTimeChanged = function() {
-    document.getElementById("currentTime").innerText = Math.floor(mediaController.AUDIO_FACADE.currentTime);
+    document.getElementById("currentTime").innerText = Math.ceil(mediaController.AUDIO_FACADE.currentTime);
 };
 
 view.onMediaControllerInit = function() {
     document.querySelector("#mediaBufferSize").innerText = mediaController.BUFFER_MAX_SIZE + " bytes";
     document.querySelector("#mediaBuffer").max = mediaController.BUFFER_MAX_SIZE;
     document.querySelector("#mediaBuffer").high = (mediaController.BUFFER_MAX_SIZE / 100) * 70;
-    document.querySelector("#mediaBuffer").low = (mediaController.BUFFER_MAX_SIZE / 100) * 30;
 }
