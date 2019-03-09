@@ -20,7 +20,7 @@
     </script>
 </head>
 
-	<body>
+    <body>
             
         <section id="controls" >
             <p>
@@ -29,7 +29,7 @@
                 <span><button id="pause" >PAUSE</button></span>
             </p>
 
-            <span><b>PLAYLIST:</b></span>
+            <span><u><b>PLAYLIST:</b></u></span>
             <ul id="playlist">
                 <li><button class="audioTrack" data-trackID="Devin Townsend Project - The Mighty Masturbator">Devin Townsend Project - The Mighty Masturbator</button></li>
                 <li><button class="audioTrack" data-trackID="The Police - Roxanne">The Police - Roxanne</button></li>
@@ -39,7 +39,7 @@
 
         <section id="trackData" >
 
-            <p><b>TRACK DATA:</b></p>
+            <p><u><b>TRACK DATA:</b></u></p>
             <ul>
 
                 <li>Time: <span id="currentTime">Unknown</span> | <b><span id="duration">Unknown</span></li></b>
@@ -53,18 +53,21 @@
         </section>
 
         <section id="internalStream" >
-            <p><b>INTERNAL STREAM:</b></p>
+            <p><b><u>REMOTE AUDIO STREAM BUFFER:</u></b></p>
             
             <span>BUFFER: </span>
             <span><progress id="streamBuffer" value="0" max="100" ></progress> <span id="streamBufferPercentage">0%</span></span>
             <ul>
-                <li>Content size: <span id="streamContentSize">0</span></li>
-                <li>Bytes buffered: <span id="streamBytesBuffered">0</span></li>
+                <li>State: <b><span id="streamState">Unknown</span></b></li>
+                <li>Estimated bytes per second: <b><span id="streamBytesPerSecond">0</span></b></li>
+                <li>Bytes download: <b><span id="streamBytesBuffered">0</span></b></li>
+                <li>Chunks fetched: <b><span id="streamDataChunks">0 out of 0</span></b></li>
+                <li>Content size: <b><span id="streamContentSize">0</span></b></li>
             </ul>
         </section>
 
         <section id="browserMediaBuffer" >
-            <p><b>BROWSER MEDIA BUFFER:</b></p>
+            <p><b><u>MEDIA/AUDIO BUFFER:</u></b></p>
             
             <span>BUFFER: </span>
             <span>
@@ -73,11 +76,15 @@
             </span>
 
             <ul>
-                <li>Buffer max size: <span id="mediaBufferSize" >0 bytes</span></li>
-                <li>Seconds buffered: <span id="secondsBuffered">0</span></li>
-                <li>Buffered until: <span id="secondsBufferedUntil">0</span></li>
+                <li>State: <b><span id="mediaState" >Unknown</span></b></li>
+                <li>Seconds buffered: <b><span id="secondsBuffered">0</span></b></li>
+                <li>Buffered until: <b><span id="secondsBufferedUntil">0</span></b></li>
+                <li>Data chunks: <b><span id="mediaChunks">0 out of 0</span></b></li>
+                <li>Buffer strategy: <b><span id="mediaBufferStrategy">Unknown</span></b></li>
+                <li>Mime type: <b><span id="mediaBufferMimetype" >Unknown</span></b></li>
+                <li>Buffer max size: <b><span id="mediaBufferSize" >0 bytes</span></b></li>
             </ul>
         </section>
-		
-	</body>
+
+    </body>
 </html>

@@ -2,15 +2,14 @@
 
 const StreamController = function() {
     
-    this.THROTTLE = 0; // ms
+    this.THROTTLE = 2000; // ms
     this.CHUNK_SIZE = 512 * 1000; // Kb
     this.STREAM_REQUEST_ENTRY_POINT = "GetAudio.cfm";
     this.ABORT_CONTROLLER = new AbortController() || {ERROR: true};
 
-    // NOT_STARTED, IN_PROGRESS, ABORTED, COMPLETED
-    this.state = "NOT_STARTED";
+    // NOT STARTED, IN PROGRESS, ABORTED, COMPLETED
+    this.state = "NOT STARTED";
     this.stream = {}; // Instance of AudioStream
-    this.abort = false;
     this.byteRequestOffset = 0;
     this.notifyOnChunkAvailability = false;
 
@@ -20,12 +19,12 @@ const StreamController = function() {
 StreamController.prototype.getNextChunk = function() {
 
     if (this.stream.status.complete()) {
-        this.state = "COMPLETED";
+        this.changeState("COMPLETED");
         console.log("STREAM: Data streaming is done, AudioStream is full");
         return true;
     };
 
-    if (this.abort) {
+    if (this.state === "ABORTED") {
         console.warn("STREAM: Data streaming aborted!");
         return false;
     };
@@ -72,13 +71,14 @@ StreamController.prototype.getNextChunk = function() {
         console.log(`STREAM: Audio data converted, updating AudioStream (byte length: ${decodedResponse.byteLength})`);
         this.update(decodedResponse)
     })
-    .catch(function(error) {
-        console.error(error);
+    .catch((error)=> {
+        console.log(error);
         this.stop();
     });
 };
 
 StreamController.prototype.update = function(arrayBuffer) {
+
     if (arrayBuffer.constructor.name !== "ArrayBuffer") {
         console.error("Argument 'arrayBuffer' is not valid");
         this.stop();
@@ -97,6 +97,9 @@ StreamController.prototype.update = function(arrayBuffer) {
     };
 
     this.stream.CHUNKS.push(arrayBuffer);
+    if (this.notifyOnChunkAvailability === true)
+        this.notifyMediaController();
+
     this.stream.status.lastUpdate = performance.now();
     if (!this.stream.status.onLastChunk())
         this.stream.status.nextChunk++;
@@ -124,23 +127,25 @@ StreamController.prototype.throttle = function() {
 };
 
 StreamController.prototype.stop = function() {
-    if (["NOT_STARTED","COMPLETED","ABORTED"].includes(this.state))
+    if (["NOT STARTED","COMPLETED","ABORTED"].includes(this.state))
         return false;
 
     console.warn("Aborting stream");
-    this.state = "ABORTED";
+    this.changeState("ABORTED");
     this.ABORT_CONTROLLER.abort();
+    // Apparently we need to create a new one because the old will remain in an aborted state and cannot be changed
+    this.ABORT_CONTROLLER = new AbortController();
     
-    return this;
+    return false;
 };
 
 StreamController.prototype.start = function() {
-    if (["IN_PROGRESS","COMPLETED"].includes(this.state))
+    if (["IN PROGRESS","COMPLETED"].includes(this.state))
         return false;
 
     console.log(`STREAM: Pumping data into AudioStream-object | chunk size: ${this.CHUNK_SIZE} | chunks expected ${this.stream.CHUNKS_EXPECTED} | content size: ${this.stream.SIZE}`);
     
-    this.state = "IN_PROGRESS";
+    this.changeState("IN PROGRESS");
     this.getNextChunk();
 
     return this;
@@ -151,8 +156,7 @@ StreamController.prototype.reset = function() {
 
     this.stop();
     this.stream = {};
-    this.state = "NOT_STARTED";
-    this.abort = false;
+    this.changeState("NOT STARTED");
     this.byteRequestOffset = 0;
 
     return this;
@@ -197,4 +201,9 @@ StreamController.prototype.load = function(id) {
 StreamController.prototype.notifyMediaController = function() {
     mediaController.nextChunkIsAvailable();
     this.notifyOnChunkAvailability = false;
+};
+
+StreamController.prototype.changeState = function(newState) {
+    this.state = newState;
+    view.onStreamStateChange();
 };
