@@ -177,7 +177,7 @@ MediaController.prototype.onBufferUpdated = function() {
 MediaController.prototype.load = function(mimeType) {
     // If mimetype isn't supported, there's no need to go any further
     if (!MediaSource.isTypeSupported(mimeType))
-        return {NOT_SUPPORTED: mimeType || false};
+        return false;
 
     this.reset();
     this.status.dataChunksExpected = streamController.stream.CHUNKS_EXPECTED || null;

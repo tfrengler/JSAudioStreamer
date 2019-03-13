@@ -5,6 +5,13 @@ var mediaController = Object.create(null);
 
 const init = function() {
 
+    if (!compatibilityCheck()) {
+        document.querySelector("#compatibilityCheck").style.display = "block";
+        return;
+    };
+
+    document.querySelector("#project").style.display = "block";
+
     streamController = new StreamController();
     mediaController = new MediaController();
 
@@ -12,6 +19,44 @@ const init = function() {
     view.onMediaControllerInit();
 
     console.log("Init done, ready to rock!");
+};
+
+const compatibilityCheck = function() {
+
+    var passed = true;
+
+    if (window.HTMLAudioElement)
+        document.querySelector("#compatHTMLAudioElement").innerHTML = "<b style='background-color:green;color:white'>YES</b>";
+    else {
+        document.querySelector("#compatHTMLAudioElement").innerHTML = "<b style='background-color:red;color:white'>NO</b>";
+        passed = false;
+    };
+
+    if (window.MediaSource)
+        document.querySelector("#compatMediaSource").innerHTML = "<b style='background-color:green;color:white'>YES</b>";
+    else {
+        document.querySelector("#compatMediaSource").innerHTML = "<b style='background-color:red;color:white'>NO</b>";
+        passed = false;
+    };
+
+    if (window.SourceBuffer)
+        document.querySelector("#compatSourceBuffer").innerHTML = "<b style='background-color:green;color:white'>YES</b>";
+    else {
+        document.querySelector("#compatSourceBuffer").innerHTML = "<b style='background-color:red;color:white'>NO</b>";
+        passed = false;
+    };
+
+    if (window.MediaSource && MediaSource.isTypeSupported("audio/mpeg"))
+        document.querySelector("#compatSourceBufferAudio").innerHTML = "<b style='background-color:green;color:white'>YES</b>";
+    else {
+        document.querySelector("#compatSourceBufferAudio").innerHTML = "<b style='background-color:red;color:white'>NO</b>";
+        passed = false;
+    };
+
+    if (passed)
+        return true;
+
+    return false;
 };
 
 const wait = function(ms) {

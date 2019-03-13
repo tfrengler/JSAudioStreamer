@@ -186,12 +186,15 @@ StreamController.prototype.load = function(id) {
         this.reset();
         this.stream = new AudioStream(decodedResponse, this.CHUNK_SIZE, id);
 
+        if (!mediaController.load(this.stream.METADATA.mimeType)) {
+            window.alert(`Sorry, your browser does not supported decoding of this media type (${this.stream.METADATA.mimeType})`);
+            return false;
+        };
+
         // INTERFACE UPDATE
         view.onNewStreamLoaded();
         console.log(`STREAM: AudioStream with id '${id}' is ready to receive data`);
         this.start();
-
-        mediaController.load(this.stream.METADATA.mimeType);
 
         return true;
     })
