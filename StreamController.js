@@ -1,14 +1,22 @@
+
 "use strict";
 
 const StreamController = function() {
+
+    this.VALID_STATES = Object.freeze({
+        NOT_STARTED: Symbol("NOT STARTED"),
+        FETCHING: Symbol("FETCHING"),
+        WAITING: Symbol("WAITING"),
+        ABORTED: Symbol("ABORTED"),
+        COMPLETED: Symbol("COMPLETED")
+    });
     
-    this.THROTTLE = 2000; // ms
+    this.THROTTLE = 0; // ms
     this.CHUNK_SIZE = 512 * 1000; // Kb
     this.STREAM_REQUEST_ENTRY_POINT = "GetAudio.cfm";
     this.ABORT_CONTROLLER = new AbortController() || {ERROR: true};
 
-    // NOT STARTED, IN PROGRESS, ABORTED, COMPLETED
-    this.state = "NOT STARTED";
+    this.state = this.VALID_STATES.NOT_STARTED;
     this.stream = {}; // Instance of AudioStream
     this.byteRequestOffset = 0;
     this.notifyOnChunkAvailability = false;
@@ -19,12 +27,12 @@ const StreamController = function() {
 StreamController.prototype.getNextChunk = function() {
 
     if (this.stream.status.complete()) {
-        this.changeState("COMPLETED");
+        this.changeState(this.VALID_STATES.COMPLETED);
         console.log("STREAM: Data streaming is done, AudioStream is full");
         return true;
     };
 
-    if (this.state === "ABORTED") {
+    if (this.state === this.VALID_STATES.ABORTED) {
         console.warn("STREAM: Data streaming aborted!");
         return false;
     };
@@ -61,6 +69,7 @@ StreamController.prototype.getNextChunk = function() {
     };
 
     const request = new Request(`${this.STREAM_REQUEST_ENTRY_POINT}?fileName=${this.stream.ID}`, requestArguments);
+    this.changeState(this.VALID_STATES.FETCHING);
 
     window.fetch(request)
     .then((responseObject)=> {
@@ -116,6 +125,8 @@ StreamController.prototype.throttle = function() {
 
     if (updateDifference < this.THROTTLE && !this.stream.status.onLastChunk()) {
 
+        this.changeState(this.VALID_STATES.WAITING);
+
         let throttleAmount = Math.floor(this.THROTTLE - updateDifference + 5);
         console.warn(`Stream was updated less than ${this.THROTTLE}ms ago (${Math.ceil(updateDifference)}ms). Throttling next request by ${throttleAmount}ms`);
         wait(throttleAmount).then(()=> this.throttle());
@@ -127,11 +138,11 @@ StreamController.prototype.throttle = function() {
 };
 
 StreamController.prototype.stop = function() {
-    if (["NOT STARTED","COMPLETED","ABORTED"].includes(this.state))
+    if ([this.VALID_STATES.COMPLETED, this.VALID_STATES.ABORTED, this.VALID_STATES.NOT_STARTED].includes(this.state))
         return false;
 
     console.warn("Aborting stream");
-    this.changeState("ABORTED");
+    this.changeState(this.VALID_STATES.ABORTED);
     this.ABORT_CONTROLLER.abort();
     // Apparently we need to create a new one because the old will remain in an aborted state and cannot be changed
     this.ABORT_CONTROLLER = new AbortController();
@@ -140,12 +151,10 @@ StreamController.prototype.stop = function() {
 };
 
 StreamController.prototype.start = function() {
-    if (["IN PROGRESS","COMPLETED"].includes(this.state))
+    if ([this.VALID_STATES.FETCHING, this.VALID_STATES.WAITING].includes(this.state))
         return false;
 
     console.log(`STREAM: Pumping data into AudioStream-object | chunk size: ${this.CHUNK_SIZE} | chunks expected ${this.stream.CHUNKS_EXPECTED} | content size: ${this.stream.SIZE}`);
-    
-    this.changeState("IN PROGRESS");
     this.getNextChunk();
 
     return this;
@@ -156,7 +165,7 @@ StreamController.prototype.reset = function() {
 
     this.stop();
     this.stream = {};
-    this.changeState("NOT STARTED");
+    this.changeState(this.VALID_STATES.NOT_STARTED);
     this.byteRequestOffset = 0;
 
     return this;
@@ -207,6 +216,12 @@ StreamController.prototype.notifyMediaController = function() {
 };
 
 StreamController.prototype.changeState = function(newState) {
+
+    if (!Object.values(this.VALID_STATES).includes(newState)) {
+        console.error("STREAM: Can't change state. Argument is not a valid state: " + newState);
+        return false;
+    };
+
     this.state = newState;
     view.onStreamStateChange();
 };

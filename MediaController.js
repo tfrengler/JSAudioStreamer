@@ -1,6 +1,21 @@
 "use strict";
 
 const MediaController = function() {
+
+    this.VALID_STATES = Object.freeze({
+        INITIALIZING: Symbol("INITIALIZING"),
+        READY: Symbol("READY"),
+        BUFFERING: Symbol("BUFFERING"),
+        STALLED: Symbol("STALLED"),
+        WAITING: Symbol("WAITING"),
+        COMPLETED: Symbol("COMPLETED"),
+        RESET: Symbol("RESET")
+    });
+
+    this.BUFFER_STRATEGIES = Object.freeze({
+        INCREMENT: Symbol("INCREMENT"),
+        FILL: Symbol("FILL")
+    });
     
     this.BUFFER_MAX_SIZE = 10485760 ; //bytes
     this.BUFFER_BUFFER_UPDATE_INTERVAL = 1000; //ms
@@ -11,14 +26,10 @@ const MediaController = function() {
     this.AUDIO_FACADE = new Audio() || {ERROR: true};
     this.AUDIO_FACADE.setAttribute("preload", "metadata");
 
-    this.MEDIA_SOURCE = new MediaSource() || {ERROR: true};
-    this.MEDIA_SOURCE.addEventListener('sourceopen', ()=> console.log("MEDIA: Source ready to receive buffers"));
-    this.AUDIO_FACADE.src = URL.createObjectURL(this.MEDIA_SOURCE);
-
     this.status = Object.create(null);
-    // READY, BUFFERING, STALLED, WAITING, COMPLETED
-    this.status.state = "READY";
-    this.status.buffer = {};
+    this.status.state = this.VALID_STATES.RESET;
+    this.status.mediaSource = {}; // Instance of MediaSource
+    this.status.buffer = {}; // Instance of SourceBuffer
     this.status.lastUpdate = 0; //performance.now() timestamp
     this.status.bufferedBytes = 0.0;
     this.status.bufferedDuration = 0.0; //Seconds
@@ -41,7 +52,6 @@ const MediaController = function() {
     this.AUDIO_FACADE.addEventListener("stalled", ()=> this.onStalled());
     this.AUDIO_FACADE.addEventListener("ended", ()=> this.onPlaybackEnded());
     this.AUDIO_FACADE.addEventListener("timeupdate", ()=> this.onPlaybackTimeChanged());
-    this.MEDIA_SOURCE.addEventListener("sourceended", ()=> this.onSourceClosed());
 
     Object.seal(this.status);
     return Object.freeze(this);
@@ -66,7 +76,7 @@ MediaController.prototype.onError = function(error) {
 
 MediaController.prototype.onStalled = function() {
     console.warn("MEDIA: Playback/buffering has stalled");
-    this.changeState("STALLED");
+    this.changeState(this.VALID_STATES.STALLED);
     this.status.bufferingAhead = false;
     streamController.notifyOnChunkAvailability = true;
 };
@@ -80,7 +90,7 @@ MediaController.prototype.onSourceClosed = function() {
 };
 
 MediaController.prototype.onPlaybackTimeChanged = function() {
-    if (performance.now() - this.status.lastPlaytimeUpdate < 1000)
+    if (performance.now() - this.status.lastPlaytimeUpdate < 900)
         return;
 
     this.status.lastPlaytimeUpdate = performance.now();
@@ -91,15 +101,18 @@ MediaController.prototype.onPlaybackTimeChanged = function() {
         return;
     };
 
-    if (this.status.bufferStrategy === "INCREMENT" && (this.status.state !== "STALLED" && this.status.state !== "COMPLETED"))
+    if (
+            this.status.bufferStrategy === this.BUFFER_STRATEGIES.INCREMENT && 
+            (this.status.state !== this.VALID_STATES.STALLED && this.status.state !== this.VALID_STATES.COMPLETED)
+        )
         this.bufferIncrementally();
 };
 
 MediaController.prototype.reset = function() {
 
     view.onMediaBufferReset();
+    this.changeState(this.VALID_STATES.RESET);
 
-    this.status.state = "RESET";
     this.status.lastUpdate = 0;
     this.status.bufferedBytes = 0.0;
     this.status.bufferedDuration = 0.0;
@@ -114,7 +127,7 @@ MediaController.prototype.reset = function() {
     this.status.bufferLastTrimmed = 0;
 
     if (this.status.buffer.constructor.name === "SourceBuffer")
-        this.MEDIA_SOURCE.removeSourceBuffer(this.status.buffer);
+        this.status.mediaSource.removeSourceBuffer(this.status.buffer);
     this.status.buffer = {};
     
     console.log("MEDIA: Controller reset to default state");
@@ -162,14 +175,20 @@ MediaController.prototype.onBufferUpdated = function() {
         return;
     };
 
-    if (this.status.bufferStrategy === "FILL" && (this.status.state !== "STALLED" && this.status.state !== "COMPLETED")) {
+    if (
+        this.status.bufferStrategy === this.BUFFER_STRATEGIES.FILL &&
+        (this.status.state !== this.VALID_STATES.STALLED && this.status.state !== this.VALID_STATES.COMPLETED)
+        ) 
+    {
         this.bufferFully();
         return;
     };
 
-    if  (this.status.bufferStrategy === "INCREMENT" && 
-        (this.status.state !== "STALLED" && this.status.state !== "COMPLETED") &&
-        this.status.bufferingAhead === true)
+    if  (
+            this.status.bufferStrategy === this.BUFFER_STRATEGIES.INCREMENT && 
+            (this.status.state !== this.VALID_STATES.STALLED && this.status.state !== this.VALID_STATES.COMPLETED) &&
+            this.status.bufferingAhead === true
+        )
             this.bufferAhead();
 
 };
@@ -180,17 +199,27 @@ MediaController.prototype.load = function(mimeType) {
         return false;
 
     this.reset();
-    this.status.dataChunksExpected = streamController.stream.CHUNKS_EXPECTED || null;
-    // We need to rewrite this to create a new MediaSource, because when it's closed (.endofstream()), you can't re-open it
-    this.status.buffer = this.MEDIA_SOURCE.addSourceBuffer(mimeType);
+    this.changeState(this.VALID_STATES.INITIALIZING);
     view.onMediaMimetypeKnown(mimeType);
 
-    this.MEDIA_SOURCE.duration = streamController.stream.METADATA.length;
-    this.status.buffer.addEventListener("update", ()=> this.onBufferUpdated());
-    this.changeState("READY");
+    this.status.dataChunksExpected = streamController.stream.CHUNKS_EXPECTED || null;
+    
+    this.status.mediaSource = new MediaSource() || {ERROR: true};
+    this.AUDIO_FACADE.src = URL.createObjectURL(this.status.mediaSource);
 
-    console.log(`MEDIA: Controller initialized and ready to stream data (${mimeType})`);
+    this.status.mediaSource.addEventListener('sourceopen', ()=> this.initMediaSourceAndSourceBuffer(mimeType));
     return true;
+};
+
+MediaController.prototype.initMediaSourceAndSourceBuffer = function(mimeType) {
+    this.status.buffer = this.status.mediaSource.addSourceBuffer(mimeType)
+    this.status.mediaSource.duration = streamController.stream.METADATA.length;
+
+    this.status.buffer.addEventListener("update", ()=> this.onBufferUpdated());
+    this.status.mediaSource.addEventListener("sourceended", ()=> this.onSourceClosed());
+
+    this.changeState(this.VALID_STATES.READY);
+    console.log(`MEDIA: Controller initialized, ready to buffer and play audio data (${mimeType})`);
 };
 
 MediaController.prototype.updateAudioBuffer = function() {
@@ -242,7 +271,7 @@ MediaController.prototype.trimBuffer = function(start, end) {
 };
 
 MediaController.prototype.play = function() {
-    if (this.status.state !== "READY" && this.AUDIO_FACADE.paused) {
+    if (this.status.state !== this.VALID_STATES.READY && this.AUDIO_FACADE.paused) {
         this.AUDIO_FACADE.play();
         return;
     };
@@ -260,13 +289,13 @@ MediaController.prototype.prepare = function() {
 
     if (streamController.stream.SIZE < this.BUFFER_MAX_SIZE) {
         console.log(`MEDIA: Audio data is less than our buffer size (${streamController.stream.SIZE}), buffering fully`);
-        this.status.bufferStrategy = "FILL";
+        this.status.bufferStrategy = this.BUFFER_STRATEGIES.FILL;
         view.onMediaBufferStrategyKnown();
         this.bufferFully();
     }
     else {
         console.log(`MEDIA: Audio data is bigger than our buffer size (${streamController.stream.SIZE}), buffering incrementally`);
-        this.status.bufferStrategy = "INCREMENT";
+        this.status.bufferStrategy = this.BUFFER_STRATEGIES.INCREMENT;
         view.onMediaBufferStrategyKnown();
         this.bufferIncrementally();
     };
@@ -285,12 +314,12 @@ MediaController.prototype.bufferFully = function() {
 
     if (lastUpdateDifference < this.BUFFER_UPDATE_INTERVAL) {
         console.warn(`MEDIA: Buffer updated less than ${this.BUFFER_UPDATE_INTERVAL}ms ago (${Math.round(lastUpdateDifference)}ms). Throttling`);
-        this.changeState("WAITING");
+        this.changeState(this.VALID_STATES.WAITING);
         wait(this.BUFFER_UPDATE_INTERVAL + 5).then(()=> this.bufferFully());
         return false;
     };
 
-    this.changeState("BUFFERING");
+    this.changeState(this.VALID_STATES.BUFFERING);
     this.updateAudioBuffer();
 };
 
@@ -318,7 +347,7 @@ MediaController.prototype.bufferIncrementally = function() {
             return;
         };
 
-        this.changeState("BUFFERING");
+        this.changeState(this.VALID_STATES.BUFFERING);
         console.log(`MEDIA: Buffering audio data`);
         
         this.status.bufferAheadMark = this.AUDIO_FACADE.currentTime;
@@ -329,7 +358,7 @@ MediaController.prototype.bufferIncrementally = function() {
     };
 
     console.log(`MEDIA: Enough data in buffer, waiting`);
-    this.changeState("WAITING");
+    this.changeState(this.VALID_STATES.WAITING);
 };
 
 MediaController.prototype.closeStream = function() {
@@ -340,10 +369,10 @@ MediaController.prototype.closeStream = function() {
         return;
     };
 
-    if (this.MEDIA_SOURCE.readyState === "open") {
+    if (this.status.mediaSource.readyState === "open") {
         console.log("MEDIA: Closing buffer");
-        this.MEDIA_SOURCE.endOfStream();
-        this.changeState("COMPLETED");
+        this.status.mediaSource.endOfStream();
+        this.changeState(this.VALID_STATES.COMPLETED);
     };
 
     return true;
@@ -351,7 +380,7 @@ MediaController.prototype.closeStream = function() {
 
 MediaController.prototype.nextChunkIsAvailable = function() {
 
-    if (this.status.bufferStrategy === "FILL") {
+    if (this.status.bufferStrategy === this.BUFFER_STRATEGIES.FILL) {
         this.bufferFully();
         return;
     };
@@ -377,6 +406,12 @@ MediaController.prototype.bufferAhead = function() {
 };
 
 MediaController.prototype.changeState = function(newState) {
+
+    if (!Object.values(this.VALID_STATES).includes(newState)) {
+        console.error("STREAM: Can't change state. Argument is not a valid state: " + newState);
+        return false;
+    };
+
     this.status.state = newState;
     view.onMediaStateChange();
 };

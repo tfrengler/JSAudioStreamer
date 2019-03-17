@@ -55,15 +55,15 @@ view.onMediaControllerInit = function() {
 };
 
 view.onMediaStateChange = function() {
-    document.querySelector("#mediaState").innerText = mediaController.status.state;
+    document.querySelector("#mediaState").innerText = mediaController.status.state.description;
 };
 
 view.onStreamStateChange = function() {
-    document.querySelector("#streamState").innerText = streamController.state;
+    document.querySelector("#streamState").innerText = streamController.state.description;
 };
 
 view.onMediaBufferStrategyKnown = function() {
-    document.querySelector("#mediaBufferStrategy").innerText = mediaController.status.bufferStrategy;
+    document.querySelector("#mediaBufferStrategy").innerText = mediaController.status.bufferStrategy.description;
 };
 
 view.onMediaMimetypeKnown = function(mimeType) {
