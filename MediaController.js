@@ -1,6 +1,8 @@
 "use strict";
 
-const MediaController = function() {
+/* globals view streamController wait */
+
+const MediaController = function() { // eslint-disable-line no-unused-vars
 
     this.VALID_STATES = Object.freeze({
         INITIALIZING: Symbol("INITIALIZING"),
@@ -99,7 +101,7 @@ MediaController.prototype.onPlaybackTimeChanged = function() {
     if (this.status.appending === true) {
         this.bufferUntil();
         return;
-    };
+    }
 
     if (
             this.status.bufferStrategy === this.BUFFER_STRATEGIES.INCREMENT && 
@@ -111,7 +113,7 @@ MediaController.prototype.onPlaybackTimeChanged = function() {
 MediaController.prototype.reset = function() {
 
     view.onMediaBufferReset();
-    this.changeState(this.VALID_STATES.RESET);
+    URL.revokeObjectURL(this.AUDIO_FACADE.src);
 
     this.status.lastUpdate = 0;
     this.status.bufferedBytes = 0.0;
@@ -130,6 +132,7 @@ MediaController.prototype.reset = function() {
         this.status.mediaSource.removeSourceBuffer(this.status.buffer);
     this.status.buffer = {};
     
+    this.changeState(this.VALID_STATES.RESET);
     console.log("MEDIA: Controller reset to default state");
 };
 
@@ -149,7 +152,7 @@ MediaController.prototype.calculateBufferedDuration = function() {
             duration = duration + (end - start);
         else
             duration = duration + end;
-    };
+    }
 
     this.status.bufferedDuration = duration;
 };
@@ -173,7 +176,7 @@ MediaController.prototype.onBufferUpdated = function() {
         console.warn("MEDIA: Buffer update triggered by trimming");
         this.status.bufferBeingTrimmed = false;
         return;
-    };
+    }
 
     if (
         this.status.bufferStrategy === this.BUFFER_STRATEGIES.FILL &&
@@ -182,7 +185,7 @@ MediaController.prototype.onBufferUpdated = function() {
     {
         this.bufferFully();
         return;
-    };
+    }
 
     if  (
             this.status.bufferStrategy === this.BUFFER_STRATEGIES.INCREMENT && 
@@ -230,7 +233,7 @@ MediaController.prototype.updateAudioBuffer = function() {
         
         wait(this.BUFFER_LOCK_RETRY).then(()=> this.updateAudioBuffer());
         return;
-    };
+    }
 
     const dataChunk = streamController.stream.CHUNKS[this.status.nextDataChunk] || null;
 
@@ -238,7 +241,7 @@ MediaController.prototype.updateAudioBuffer = function() {
         console.warn("MEDIA: Next data chunk isn't available. Buffering has stalled");
         this.onStalled();
         return false;
-    };
+    }
 
     console.log(`MEDIA: Appending data chunk to buffer (${dataChunk.byteLength} bytes)`);
 
@@ -255,9 +258,9 @@ MediaController.prototype.trimBuffer = function(start, end) {
     if (this.status.buffer.updating) {
         console.warn("MEDIA: Buffer is locked, retrying in a second");
         
-        wait(this.BUFFER_LOCK_RETRY).then(()=> this.trimBuffer(start, end, bytes));
+        wait(this.BUFFER_LOCK_RETRY).then(()=> this.trimBuffer(start, end));
         return;
-    };
+    }
 
     const removeDuration = end - start;
     const bytesRemoved = streamController.stream.BYTES_PER_SECOND * removeDuration;
@@ -274,7 +277,7 @@ MediaController.prototype.play = function() {
     if (this.status.state !== this.VALID_STATES.READY && this.AUDIO_FACADE.paused) {
         this.AUDIO_FACADE.play();
         return;
-    };
+    }
 
     console.log("MEDIA: Starting playback and audio data buffering");
     this.prepare();
@@ -298,7 +301,7 @@ MediaController.prototype.prepare = function() {
         this.status.bufferStrategy = this.BUFFER_STRATEGIES.INCREMENT;
         view.onMediaBufferStrategyKnown();
         this.bufferIncrementally();
-    };
+    }
 
 };
 
@@ -308,7 +311,7 @@ MediaController.prototype.bufferFully = function() {
         console.log("MEDIA: Buffer has been filled");
         this.closeStream();
         return true;
-    };
+    }
 
     const lastUpdateDifference = performance.now() - this.status.lastUpdate;
 
@@ -317,7 +320,7 @@ MediaController.prototype.bufferFully = function() {
         this.changeState(this.VALID_STATES.WAITING);
         wait(this.BUFFER_UPDATE_INTERVAL + 5).then(()=> this.bufferFully());
         return false;
-    };
+    }
 
     this.changeState(this.VALID_STATES.BUFFERING);
     this.updateAudioBuffer();
@@ -333,7 +336,7 @@ MediaController.prototype.bufferIncrementally = function() {
         console.log("MEDIA: Buffer has been filled");
         this.closeStream();
         return true;
-    };
+    }
 
     const playCursor = this.AUDIO_FACADE.currentTime;
     const timeDifference = this.status.bufferedUntil - playCursor;
@@ -345,7 +348,7 @@ MediaController.prototype.bufferIncrementally = function() {
             console.warn(`MEDIA: More than ${this.BUFFER_TRIM_SECONDS} seconds trail in buffer, trimming first`);
             this.trimBuffer(this.status.buffer.buffered.start(0), playCursor - 5);
             return;
-        };
+        }
 
         this.changeState(this.VALID_STATES.BUFFERING);
         console.log(`MEDIA: Buffering audio data`);
@@ -355,7 +358,7 @@ MediaController.prototype.bufferIncrementally = function() {
         this.bufferAhead();
 
         return true;
-    };
+    }
 
     console.log(`MEDIA: Enough data in buffer, waiting`);
     this.changeState(this.VALID_STATES.WAITING);
@@ -367,13 +370,13 @@ MediaController.prototype.closeStream = function() {
         console.warn("MEDIA: Buffer is locked, retrying in a moment");
         wait(this.BUFFER_LOCK_RETRY).then(()=> this.closeStream());
         return;
-    };
+    }
 
     if (this.status.mediaSource.readyState === "open") {
         console.log("MEDIA: Closing buffer");
         this.status.mediaSource.endOfStream();
         this.changeState(this.VALID_STATES.COMPLETED);
-    };
+    }
 
     return true;
 };
@@ -383,7 +386,7 @@ MediaController.prototype.nextChunkIsAvailable = function() {
     if (this.status.bufferStrategy === this.BUFFER_STRATEGIES.FILL) {
         this.bufferFully();
         return;
-    };
+    }
 
     this.bufferIncrementally();
 };
@@ -394,13 +397,13 @@ MediaController.prototype.bufferAhead = function() {
         console.log("MEDIA: Buffer has been filled");
         this.closeStream();
         return true;
-    };
+    }
 
     if (this.status.bufferedUntil - this.status.bufferAheadMark > this.BUFFER_AHEAD) {
         console.log(`MEDIA: Buffered enough data ahead (${this.BUFFER_AHEAD})`);
         this.status.bufferingAhead = false;
         return true;
-    };
+    }
 
     this.updateAudioBuffer();
 };
@@ -410,7 +413,7 @@ MediaController.prototype.changeState = function(newState) {
     if (!Object.values(this.VALID_STATES).includes(newState)) {
         console.error("STREAM: Can't change state. Argument is not a valid state: " + newState);
         return false;
-    };
+    }
 
     this.status.state = newState;
     view.onMediaStateChange();

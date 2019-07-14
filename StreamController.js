@@ -1,5 +1,6 @@
-
 "use strict";
+
+/* globals view wait AudioStream mediaController */
 
 const StreamController = function() {
 
@@ -14,7 +15,7 @@ const StreamController = function() {
     this.THROTTLE = 0; // ms
     this.CHUNK_SIZE = 512 * 1000; // Kb
     this.STREAM_REQUEST_ENTRY_POINT = "GetAudio.cfm";
-    this.ABORT_CONTROLLER = new AbortController() || {ERROR: true};
+    this.ABORT_CONTROLLER = new AbortController();
 
     this.state = this.VALID_STATES.NOT_STARTED;
     this.stream = {}; // Instance of AudioStream
@@ -30,12 +31,12 @@ StreamController.prototype.getNextChunk = function() {
         this.changeState(this.VALID_STATES.COMPLETED);
         console.log("STREAM: Data streaming is done, AudioStream is full");
         return true;
-    };
+    }
 
     if (this.state === this.VALID_STATES.ABORTED) {
         console.warn("STREAM: Data streaming aborted!");
         return false;
-    };
+    }
 
     console.log(`STREAM: Remotely fetching data chunk (${this.stream.status.nextChunk + 1} out of ${this.stream.CHUNKS_EXPECTED})`);
 
@@ -52,7 +53,7 @@ StreamController.prototype.getNextChunk = function() {
         console.warn(`${nextChunkByteStart} | ${nextChunkByteEnd}`);
         this.stop();
         return false;
-    };
+    }
 
     console.log(`STREAM: Initiate GET request to fetch byte ${nextChunkByteStart} to ${nextChunkByteEnd || this.stream.SIZE}`);
 
@@ -92,7 +93,7 @@ StreamController.prototype.update = function(arrayBuffer) {
         console.error("Argument 'arrayBuffer' is not valid");
         this.stop();
         return false;
-    };
+    }
 
     var audioDataDifference = 0;
 
@@ -103,7 +104,7 @@ StreamController.prototype.update = function(arrayBuffer) {
     if (audioDataDifference > 0) {
         this.byteRequestOffset = (audioDataDifference + this.byteRequestOffset);
         console.warn(`Chunk data array is longer than expected by ${audioDataDifference} byte(s). Adjusting next chunk offset to ${this.byteRequestOffset} bytes`);
-    };
+    }
 
     this.stream.CHUNKS.push(arrayBuffer);
     if (this.notifyOnChunkAvailability === true)
@@ -132,7 +133,7 @@ StreamController.prototype.throttle = function() {
         wait(throttleAmount).then(()=> this.throttle());
 
         return false;
-    };
+    }
 
     this.getNextChunk();
 };
@@ -198,7 +199,7 @@ StreamController.prototype.load = function(id) {
         if (!mediaController.load(this.stream.METADATA.mimeType)) {
             window.alert(`Sorry, your browser does not supported decoding of this media type (${this.stream.METADATA.mimeType})`);
             return false;
-        };
+        }
 
         // INTERFACE UPDATE
         view.onNewStreamLoaded();
@@ -220,7 +221,7 @@ StreamController.prototype.changeState = function(newState) {
     if (!Object.values(this.VALID_STATES).includes(newState)) {
         console.error("STREAM: Can't change state. Argument is not a valid state: " + newState);
         return false;
-    };
+    }
 
     this.state = newState;
     view.onStreamStateChange();

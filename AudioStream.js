@@ -1,6 +1,6 @@
 "use strict";
 
-const AudioStream = function(metadata, chunkSize, id) {
+const AudioStream = function(metadata, chunkSize, id) { // eslint-disable-line no-unused-vars
 
     this.METADATA = metadata || {};
     this.ID = id || "UNKNOWN";

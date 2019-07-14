@@ -1,14 +1,16 @@
 "use strict";
 
+/* globals StreamController MediaController view init */
+
 var streamController = Object.create(null);
 var mediaController = Object.create(null);
 
-const init = function() {
+const init = function() { // eslint-disable-line no-unused-vars
 
     if (!compatibilityCheck()) {
         document.querySelector("#compatibilityCheck").style.display = "block";
         return;
-    };
+    }
 
     document.querySelector("#project").style.display = "block";
 
@@ -30,28 +32,28 @@ const compatibilityCheck = function() {
     else {
         document.querySelector("#compatHTMLAudioElement").innerHTML = "<b style='background-color:red;color:white'>NO</b>";
         passed = false;
-    };
+    }
 
     if (window.MediaSource)
         document.querySelector("#compatMediaSource").innerHTML = "<b style='background-color:green;color:white'>YES</b>";
     else {
         document.querySelector("#compatMediaSource").innerHTML = "<b style='background-color:red;color:white'>NO</b>";
         passed = false;
-    };
+    }
 
     if (window.SourceBuffer)
         document.querySelector("#compatSourceBuffer").innerHTML = "<b style='background-color:green;color:white'>YES</b>";
     else {
         document.querySelector("#compatSourceBuffer").innerHTML = "<b style='background-color:red;color:white'>NO</b>";
         passed = false;
-    };
+    }
 
     if (window.MediaSource && MediaSource.isTypeSupported("audio/mpeg"))
         document.querySelector("#compatSourceBufferAudio").innerHTML = "<b style='background-color:green;color:white'>YES</b>";
     else {
         document.querySelector("#compatSourceBufferAudio").innerHTML = "<b style='background-color:red;color:white'>NO</b>";
         passed = false;
-    };
+    }
 
     if (passed)
         return true;
@@ -59,11 +61,11 @@ const compatibilityCheck = function() {
     return false;
 };
 
-const wait = function(ms) {
-    return new Promise((resolve, reject)=> setTimeout(resolve, parseFloat(ms) || 0));
+const wait = function(ms) { // eslint-disable-line no-unused-vars
+    return new Promise((resolve)=> setTimeout(resolve, parseFloat(ms) || 0));
 };
 
-const readableBytes = function(bytes) {
+const readableBytes = function(bytes) { // eslint-disable-line no-unused-vars
     var i = Math.floor(Math.log(bytes) / Math.log(1024)),
     sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
 

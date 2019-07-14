@@ -1,5 +1,7 @@
 "use strict";
 
+/* globals streamController mediaController readableBytes */
+
 const view = Object.create(null);
 
 view.onInternalBufferUpdate = function() {
