@@ -1,228 +1,207 @@
 "use strict";
 
-/* globals view wait AudioStream mediaController */
+/* globals view wait AudioObject */
 
-const StreamController = function() {
+const StreamController = function(requestEntryPoint, desiredFragmentSize) {
 
-    this.VALID_STATES = Object.freeze({
-        NOT_STARTED: Symbol("NOT STARTED"),
-        FETCHING: Symbol("FETCHING"),
-        WAITING: Symbol("WAITING"),
+    this.debug = true;
+
+    this.validStates = Object.freeze({
+        NOT_STARTED: Symbol("NOT_STARTED"),
+        CONNECTING: Symbol("CONNECTING"),
+        READY_TO_STREAM: Symbol("READY_TO_STREAM"),
+        READING_FROM_STREAM: Symbol("READING_FROM_STREAM"),
+        UPDATING_AUDIO_OBJECT: Symbol("UPDATING_AUDIO_OBJECT"),
         ABORTED: Symbol("ABORTED"),
         COMPLETED: Symbol("COMPLETED")
     });
-    
-    this.THROTTLE = 0; // ms
-    this.CHUNK_SIZE = 512 * 1000; // Kb
-    this.STREAM_REQUEST_ENTRY_POINT = "GetAudio.cfm";
-    this.ABORT_CONTROLLER = new AbortController();
 
-    this.state = this.VALID_STATES.NOT_STARTED;
-    this.stream = {}; // Instance of AudioStream
-    this.byteRequestOffset = 0;
-    this.notifyOnChunkAvailability = false;
+    this.state = this.validStates.NOT_STARTED;
+    this.STREAM_REQUEST_ENTRY_POINT = requestEntryPoint || "ERROR";
+    this.abortController = new AbortController();
+    this.mediaController = {}; // Instance of mediaController
+
+    this.audioObject = {}; // Instance of AudioObject
+    this.stream = {}; // Instance of ReadableStreamDefaultReader
+
+    this.FRAGMENT_THRESHOLD = desiredFragmentSize || 512 * 1024; // Threshold at which existing chunks are combined (called a "fragment") and handed to the audio object
+    this.chunkBuffer = new Set(); // Holds the chunks read from the stream, which gets purged every time the threshold is reached, and a fragment is created from the combined chunks available
+
+    // Locking properties
+    Object.defineProperties(this, {
+        "validStates": {configurable: false, enumerable: true, writable: false},
+        "STREAM_REQUEST_ENTRY_POINT": {configurable: false, enumerable: true, writable: false},
+        "FRAGMENT_THRESHOLD": {configurable: false, enumerable: true, writable: false},
+        "chunkBuffer": {configurable: false, enumerable: true, writable: false}
+    });
 
     return Object.seal(this);
 };
 
-StreamController.prototype.getNextChunk = function() {
+// #EXTERNAL
+StreamController.prototype.start = function() {
+    if ([this.validStates.NOT_STARTED, this.validStates.COMPLETED, this.validStates.ABORTED].includes(this.state))
+        return;
 
-    if (this.stream.status.complete()) {
-        this.changeState(this.VALID_STATES.COMPLETED);
-        console.log("STREAM: Data streaming is done, AudioStream is full");
-        return true;
-    }
-
-    if (this.state === this.VALID_STATES.ABORTED) {
-        console.warn("STREAM: Data streaming aborted!");
-        return false;
-    }
-
-    console.log(`STREAM: Remotely fetching data chunk (${this.stream.status.nextChunk + 1} out of ${this.stream.CHUNKS_EXPECTED})`);
-
-    let nextChunkByteStart = (this.stream.status.nextChunk * this.CHUNK_SIZE) + this.byteRequestOffset;
-    let nextChunkByteEnd = 0;
-
-    if (this.stream.status.onLastChunk())
-        nextChunkByteEnd = ""; // For the last chunk we just get whatever remains. If we fetch really tiny chunks we may not have enough valid frame data for the decoder
-    else
-        nextChunkByteEnd = nextChunkByteStart + this.CHUNK_SIZE;
-
-    if ((isNaN(parseInt(nextChunkByteStart)) || parseInt(nextChunkByteStart) < 0) && !parseInt(nextChunkByteEnd)) {
-        console.error("STREAM: Can't fetch data chunk. nextChunkByteStart or nextChunkByteStart aren't valid");
-        console.warn(`${nextChunkByteStart} | ${nextChunkByteEnd}`);
-        this.stop();
-        return false;
-    }
-
-    console.log(`STREAM: Initiate GET request to fetch byte ${nextChunkByteStart} to ${nextChunkByteEnd || this.stream.SIZE}`);
+    if (this.debug) console.log(`STREAM: Opening stream (${this.STREAM_REQUEST_ENTRY_POINT})`);
+    this.changeState(this.validStates.CONNECTING);
 
     const headers = new Headers();
-    headers.append("Accept", this.stream.METADATA.mimeType);
-    headers.append("range", `bytes=${nextChunkByteStart}-${nextChunkByteEnd}`);
+    headers.append("Accept", this.audioObject.mimeType);
 
     const requestArguments = {
         method: "GET",
         cache: "no-store",
         mode: "cors",
         headers: headers,
-        signal: this.ABORT_CONTROLLER.signal
+        signal: this.abortController.signal
     };
 
-    const request = new Request(`${this.STREAM_REQUEST_ENTRY_POINT}?fileName=${this.stream.ID}`, requestArguments);
-    this.changeState(this.VALID_STATES.FETCHING);
+    const request = new Request(`${this.STREAM_REQUEST_ENTRY_POINT}?fileName=${this.audioObject.ID}`, requestArguments);
 
-    window.fetch(request)
-    .then((responseObject)=> {
-        console.log("STREAM: Audio data fetched, converting to arrayBuffer");
-        return responseObject.arrayBuffer()
-    })
-    .then((decodedResponse)=> {
-        console.log(`STREAM: Audio data converted, updating AudioStream (byte length: ${decodedResponse.byteLength})`);
-        this.update(decodedResponse)
+    fetch(request).then((responseObject)=> {
+        if (this.debug) console.log("STREAM: Connection opened, locking stream to reader");
+        this.stream = responseObject.body.getReader();
+        this.read();
     })
     .catch((error)=> {
-        console.log(error);
-        this.stop();
+        console.warn("STREAM: Error when opening connection to stream:");
+        this.stop(error.message);
     });
 };
 
-StreamController.prototype.update = function(arrayBuffer) {
-
-    if (arrayBuffer.constructor.name !== "ArrayBuffer") {
-        console.error("Argument 'arrayBuffer' is not valid");
-        this.stop();
+StreamController.prototype.read = function() {
+    if ([this.validStates.NOT_STARTED, this.validStates.COMPLETED, this.validStates.ABORTED].includes(this.state))
         return false;
+
+    this.changeState(this.validStates.READING_FROM_STREAM);
+
+    this.stream.read().then((result)=> {
+
+        if (result.done) {
+            this.changeState(this.validStates.COMPLETED);
+            
+            this.mediaController.status.streamComplete = true;
+            this.stream.cancel();
+
+            if (this.calculateBufferedBytes() > 0)
+                this.updateAudioObject(this.createFragment());
+
+            if (this.debug) console.log("STREAM: Download complete, stream closed");
+            return;
+        }
+
+        this.onNextChunk(result.value);
+    })
+    .catch((error)=> {
+        if (this.debug) console.error(error);
+        this.stop(error.message);
+    });
+};
+
+StreamController.prototype.onNextChunk = function(chunk) {
+    
+    this.chunkBuffer.add(chunk);
+    let bufferedBytes = this.calculateBufferedBytes();
+    
+    if (bufferedBytes < this.FRAGMENT_THRESHOLD) {
+        this.read();
+        return;
+    };
+
+    this.changeState(this.validStates.UPDATING_AUDIO_OBJECT);
+    this.updateAudioObject(this.createFragment());
+};
+
+StreamController.prototype.createFragment = function() {
+
+    const bufferedBytes = this.calculateBufferedBytes();
+    const fragment = new Uint8Array(bufferedBytes);
+
+    let fragmentAppendOffset = 0;
+
+    this.chunkBuffer.forEach((chunk) => {
+        fragment.set(chunk, fragmentAppendOffset);
+        fragmentAppendOffset = (fragmentAppendOffset + chunk.byteLength);
+    });
+
+    this.chunkBuffer.clear();
+    return fragment;
+};
+
+StreamController.prototype.calculateBufferedBytes = function() {
+    let totalSize = 0;
+    this.chunkBuffer.forEach((chunk) => {
+        totalSize += chunk.byteLength;
+    })
+    return totalSize;
+};
+
+StreamController.prototype.updateAudioObject = function(arrayBuffer) {
+    
+    if (!this.audioObject.addToBuffer(arrayBuffer)) {
+        this.stop();
+        return;
     }
 
-    var audioDataDifference = 0;
-
-    // Last chunk, no reason to check the difference
-    if (!this.stream.status.onLastChunk())
-        audioDataDifference = arrayBuffer.byteLength - this.CHUNK_SIZE;
-
-    if (audioDataDifference > 0) {
-        this.byteRequestOffset = (audioDataDifference + this.byteRequestOffset);
-        console.warn(`Chunk data array is longer than expected by ${audioDataDifference} byte(s). Adjusting next chunk offset to ${this.byteRequestOffset} bytes`);
-    }
-
-    this.stream.CHUNKS.push(arrayBuffer);
-    if (this.notifyOnChunkAvailability === true)
-        this.notifyMediaController();
-
-    this.stream.status.lastUpdate = performance.now();
-    if (!this.stream.status.onLastChunk())
-        this.stream.status.nextChunk++;
+    this.audioObject.lastUpdate = performance.now();
+    this.mediaController.status.nextAvailableDataChunk = this.audioObject.getFragmentCount() - 1;
 
     // INTERFACE UPDATE
-    view.onInternalBufferUpdate();
-    console.log("STREAM: Audio data array appended to buffer");
-    this.throttle();
+    // view.onInternalBufferUpdate(); Again, do this with events
+
+    this.read();
 };
 
-StreamController.prototype.throttle = function() {
-    const updated = performance.now();
-    const updateDifference = updated - this.stream.status.lastUpdate;
+// #EXTERNAL
+StreamController.prototype.stop = function(reason) {
+    if ([this.validStates.NOT_STARTED, this.validStates.COMPLETED, this.validStates.ABORTED].includes(this.state))
+        return;
 
-    if (updateDifference < this.THROTTLE && !this.stream.status.onLastChunk()) {
+    if (this.debug) console.warn(`STREAM: Aborting stream (${reason || "no reason given"})`);
+    this.changeState(this.validStates.ABORTED);
 
-        this.changeState(this.VALID_STATES.WAITING);
-
-        let throttleAmount = Math.floor(this.THROTTLE - updateDifference + 5);
-        console.warn(`Stream was updated less than ${this.THROTTLE}ms ago (${Math.ceil(updateDifference)}ms). Throttling next request by ${throttleAmount}ms`);
-        wait(throttleAmount).then(()=> this.throttle());
-
-        return false;
-    }
-
-    this.getNextChunk();
-};
-
-StreamController.prototype.stop = function() {
-    if ([this.VALID_STATES.COMPLETED, this.VALID_STATES.ABORTED, this.VALID_STATES.NOT_STARTED].includes(this.state))
-        return false;
-
-    console.warn("Aborting stream");
-    this.changeState(this.VALID_STATES.ABORTED);
-    this.ABORT_CONTROLLER.abort();
-    // Apparently we need to create a new one because the old will remain in an aborted state and cannot be changed
-    this.ABORT_CONTROLLER = new AbortController();
+    this.abortController.abort();
+    this.stream.cancel();
     
-    return false;
-};
-
-StreamController.prototype.start = function() {
-    if ([this.VALID_STATES.FETCHING, this.VALID_STATES.WAITING].includes(this.state))
-        return false;
-
-    console.log(`STREAM: Pumping data into AudioStream-object | chunk size: ${this.CHUNK_SIZE} | chunks expected ${this.stream.CHUNKS_EXPECTED} | content size: ${this.stream.SIZE}`);
-    this.getNextChunk();
-
-    return this;
+    return true;
 };
 
 StreamController.prototype.reset = function() {
-    console.log("STREAM: Resetting controller to its default state");
+    if ([this.validStates.NOT_STARTED].includes(this.state))
+        return;
 
-    this.stop();
+    if (this.debug) console.log("STREAM: Resetting controller to its default state");
+
     this.stream = {};
-    this.changeState(this.VALID_STATES.NOT_STARTED);
-    this.byteRequestOffset = 0;
+    this.audioObject = {};
+    this.abortController = new AbortController();
 
-    return this;
+    this.changeState(this.validStates.NOT_STARTED);
 };
 
-StreamController.prototype.load = function(id) {
-    id = id || "ERROR";
+// #EXTERNAL
+StreamController.prototype.load = function(audioObject) {
+    this.audioObject = (audioObject && audioObject instanceof AudioObject ? audioObject : "ERROR!");
+    if (this.debug) console.log(`STREAM: Preparing for new stream (${this.audioObject.ID}, ${this.audioObject.SIZE} bytes, ${this.audioObject.MIME_TYPE})`);
 
-    console.log(`STREAM: Request received to prepare stream for ID '${id}'`);
+    this.reset();
+    this.changeState(this.validStates.READY_TO_STREAM);
 
-    const headers = new Headers();
-    headers.append("Accept", "application/json");
-
-    const requestArguments = {
-        method: "GET",
-        cache: "no-store",
-        mode: "cors",
-        headers: headers
-    };
-
-    const request = new Request(`GetAudioMetadata.cfm?fileName=${encodeURIComponent(id)}`, requestArguments);
-
-    return window.fetch(request)
-    .then((responseObject)=> responseObject.json())
-    .then((decodedResponse)=> {
-
-        this.reset();
-        this.stream = new AudioStream(decodedResponse, this.CHUNK_SIZE, id);
-
-        if (!mediaController.load(this.stream.METADATA.mimeType)) {
-            window.alert(`Sorry, your browser does not supported decoding of this media type (${this.stream.METADATA.mimeType})`);
-            return false;
-        }
-
-        // INTERFACE UPDATE
-        view.onNewStreamLoaded();
-        console.log(`STREAM: AudioStream with id '${id}' is ready to receive data`);
-        this.start();
-
-        return true;
-    })
-    .catch((error)=> console.error(error));
-};
-
-StreamController.prototype.notifyMediaController = function() {
-    mediaController.nextChunkIsAvailable();
-    this.notifyOnChunkAvailability = false;
+    return true;
 };
 
 StreamController.prototype.changeState = function(newState) {
-
-    if (!Object.values(this.VALID_STATES).includes(newState)) {
+    if (!Object.values(this.validStates).includes(newState)) {
         console.error("STREAM: Can't change state. Argument is not a valid state: " + newState);
         return false;
     }
 
     this.state = newState;
-    view.onStreamStateChange();
+    // view.onStreamStateChange();
+};
+
+StreamController.prototype.registerMediaController = function(self) {
+    this.mediaController = (self && self instanceof MediaController ? self : "ERROR!");
+    Object.defineProperty(this, "mediaController", {configurable: false, enumerable: true, writable: false});
 };

@@ -8,10 +8,10 @@
 
 <cfset filePath = "#expandPath(".")#/#URL.fileName#.mp3" />
 
-<cfheader name="Content-Disposition" value="attachment; filename=AudioTrack" />
+<cfheader name="Content-Disposition" value="attachment; filename=AudioStream" />
 
-<cfif structKeyExists(getHTTPRequestData().headers, "range") IS false >
+<!--- <cfif structKeyExists(getHTTPRequestData().headers, "range") IS false >
     <cfheader name="Content-Length" value=#getFileInfo(filePath).size# />
-</cfif>
+</cfif> --->
 
 <cfcontent file=#filePath# type=#fileGetMimeType(filePath)# />
