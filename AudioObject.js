@@ -46,8 +46,6 @@ AudioObject.prototype.addToBuffer = function(arrayBuffer) {
     };
 
     this.dataFragments.add(arrayBuffer);
-
-    // console.log(`AUDIO_OBJECT: Buffer updated (${this.getStoredPercentage()}%)`);
     return true;
 };
 

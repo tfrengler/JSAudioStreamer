@@ -14,8 +14,7 @@ const init = function() { // eslint-disable-line no-unused-vars
 
     document.querySelector("#project").style.display = "block";
 
-    streamController = new StreamController();
-    mediaController = new MediaController();
+    mediaController = new MediaController(new StreamController("GetAudio.cfm"));
 
     setupInterfaceEvents();
     view.onMediaControllerInit();
@@ -74,12 +73,20 @@ const readableBytes = function(bytes) { // eslint-disable-line no-unused-vars
 
 const setupInterfaceEvents = function() {
 
-    document.getElementById("play").addEventListener("click", ()=> mediaController.play());
-    document.getElementById("pause").addEventListener("click", ()=> mediaController.stop());
+    document.getElementById("play").addEventListener("click", ()=> mediaController.startPlayback());
+    document.getElementById("pause").addEventListener("click", ()=> mediaController.audioController.pause());
 
-    document.querySelectorAll(".audioTrack").forEach((value)=> {
-        value.addEventListener("click", function() {streamController.load(this.dataset.trackid)});
-    });
+    document.getElementById("The Police").addEventListener("click", ()=> 
+        mediaController.load( new AudioObject("The Police - Roxanne", 3951462, 191, "audio/mpeg") )
+    );
+
+    document.getElementById("The Who").addEventListener("click", ()=> 
+        mediaController.load( new AudioObject("The Who - You Better You Bet", 13563686, 339, "audio/mpeg") )
+    );
+    
+    document.getElementById("Devin").addEventListener("click", ()=> 
+        mediaController.load( new AudioObject("Devin Townsend Project - The Mighty Masturbator", 35564574, 988, "audio/mpeg") )
+    );
 
     console.log("Interface event handlers set up");
 };

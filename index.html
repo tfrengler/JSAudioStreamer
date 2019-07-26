@@ -6,50 +6,16 @@
     <meta content="text/html; charset=utf-8" http-equiv="Content-Type" />
     <meta name="author" content="Thomas Frengler" />
 
-    <!-- <script type="text/javascript" src="Interface.js"></script> -->
+    <script type="text/javascript" src="Interface.js"></script>
     <script type="text/javascript" src="StreamController.js"></script>
     <script type="text/javascript" src="MediaController.js"></script>
     <script type="text/javascript" src="AudioObject.js"></script>
     <script type="text/javascript" src="init.js"></script>
 
     <script>
-        const appendBuffer = function(fragment, callback) {
-            if (buffer.updating) {
-                console.warn("MEDIA: Buffer is locked, retrying in a moment");
-                
-                wait(1000).then(()=> appendBuffer(fragment));
-                return;
-            }
-
-            buffer.appendBuffer(fragment);
-        };
-
         window.onload = function() {
             console.log("Initializing...");
-            // init();
-
-            mediaController = new MediaController(new StreamController("GetAudio.cfm"));
-            // mediaController.load( new AudioObject("The Police - Roxanne", 3951462, 191, "audio/mpeg") );
-            mediaController.load( new AudioObject("The Who - You Better You Bet", 13563686, 339, "audio/mpeg") );
-
-            // stream = new StreamController("GetAudio.cfm");
-            // stream.load("The Police - Roxanne", 3951462, 191, "audio/mpeg");
-
-            // // audio = new Audio();
-            // document.getElementsByTagName("audio")[0].setAttribute("preload", "metadata");
-            // buffer = {};
-
-            // mediaSource = new MediaSource();
-            // mediaSource.addEventListener('sourceopen', ()=> {
-            //     mediaSource.duration = 191;
-            //     buffer = mediaSource.addSourceBuffer("audio/mpeg");
-            //     buffer.addEventListener("update", ()=> console.log("Source buffer updated"));
-            //     console.log("Media source ready!");
-            // });
-
-            // document.getElementsByTagName("audio")[0].src = URL.createObjectURL(mediaSource);
-
-            // stream.start();
+            init();
         };
     </script>
 
@@ -61,16 +27,6 @@
 </head>
 
     <body>
-
-        <figure>
-            <figcaption>Listen:</figcaption>
-            <audio
-                controls
-                src="">
-                    Your browser does not support the
-                    <code>audio</code> element.
-            </audio>
-        </figure>
 
         <section id="compatibilityCheck" >
             Compatibility Check:
@@ -95,9 +51,9 @@
 
                 <span><u><b>PLAYLIST:</b></u></span>
                 <ul id="playlist">
-                    <li><button class="audioTrack" data-trackID="Devin Townsend Project - The Mighty Masturbator">Devin Townsend Project - The Mighty Masturbator</button></li>
-                    <li><button class="audioTrack" data-trackID="The Police - Roxanne">The Police - Roxanne</button></li>
-                    <li><button class="audioTrack" data-trackID="The Who - You Better You Bet">The Who - You Better You Bet</button></li>
+                    <li><button id="Devin" class="audioTrack">Devin Townsend Project - The Mighty Masturbator</button></li>
+                    <li><button id="The Police" class="audioTrack">The Police - Roxanne</button></li>
+                    <li><button id="The Who" class="audioTrack">The Who - You Better You Bet</button></li>
                 </ul>
             </section>
 
@@ -108,24 +64,20 @@
 
                     <li>Time: <span id="currentTime">Unknown</span> | <b><span id="duration">Unknown</span></li></b>
                     <li>Title: <b><span id="title">Unknown</span></li></b>
-                    <li>Artist: <b><span id="artist">Unknown</span></li></b>
-                    <li>Album: <b><span id="album">Unknown</span></li></b>
-                    <li>Genre: <b><span id="genre">Unknown</span></li></b>
-                    <li>Year: <b><span id="year">Unknown</span></li></b>
                     
                 </ul>
             </section>
 
             <section id="internalStream" >
-                <p><b><u>REMOTE AUDIO STREAM BUFFER:</u></b></p>
+                <p><b><u>REMOTE STREAM:</u></b></p>
                 
-                <span>BUFFER: </span>
+                <span>AUDIO OBJECT BUFFER: </span>
                 <span><progress id="streamBuffer" value="0" max="100" ></progress> <span id="streamBufferPercentage">0%</span></span>
                 <ul>
                     <li>State: <b><span id="streamState">Unknown</span></b></li>
                     <li>Estimated bytes per second: <b><span id="streamBytesPerSecond">0</span></b></li>
-                    <li>Bytes download: <b><span id="streamBytesBuffered">0</span></b></li>
-                    <li>Chunks fetched: <b><span id="streamDataChunks">0 out of 0</span></b></li>
+                    <li>Bytes downloaded: <b><span id="streamBytesBuffered">0</span></b></li>
+                    <li>Fragments: <b><span id="streamDataChunks">0</span></b></li>
                     <li>Content size: <b><span id="streamContentSize">0</span></b></li>
                 </ul>
             </section>
@@ -143,7 +95,7 @@
                     <li>State: <b><span id="mediaState" >Unknown</span></b></li>
                     <li>Seconds buffered: <b><span id="secondsBuffered">0</span></b></li>
                     <li>Buffered until: <b><span id="secondsBufferedUntil">0</span></b></li>
-                    <li>Data chunks: <b><span id="mediaChunks">0 out of 0</span></b></li>
+                    <li>At data chunk: <b><span id="mediaChunks">0</span></b></li>
                     <li>Buffer strategy: <b><span id="mediaBufferStrategy">Unknown</span></b></li>
                     <li>Mime type: <b><span id="mediaBufferMimetype" >Unknown</span></b></li>
                     <li>Buffer max size: <b><span id="mediaBufferSize" >0 bytes</span></b></li>

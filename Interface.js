@@ -6,24 +6,21 @@ const view = Object.create(null);
 
 view.onInternalBufferUpdate = function() {
 
-    document.querySelector("#streamBuffer").value = streamController.stream.status.getBufferedPercentage();
-    document.querySelector("#streamBufferPercentage").innerText = streamController.stream.status.getBufferedPercentage().toFixed(2) + "%";
-    document.querySelector("#streamBytesBuffered").innerText = streamController.stream.status.getBufferedBytes();
-    document.querySelector("#streamDataChunks").innerText = `${streamController.stream.CHUNKS.length} out of ${streamController.stream.CHUNKS_EXPECTED}`;
+    document.querySelector("#streamBuffer").value = mediaController.streamController.audioObject.getStoredPercentage();
+    document.querySelector("#streamBufferPercentage").innerText = mediaController.streamController.audioObject.getStoredPercentage() + "%";
+    document.querySelector("#streamBytesBuffered").innerText = mediaController.streamController.audioObject.getStoredBytes();
+    document.querySelector("#streamDataChunks").innerText = mediaController.streamController.audioObject.getFragmentCount();
 };
 
 view.onNewStreamLoaded = function() {
 
-    document.querySelector("#streamContentSize").innerText = `${streamController.stream.SIZE} bytes || ${readableBytes(streamController.stream.SIZE)}`;
-    document.querySelector("#duration").innerText = streamController.stream.METADATA.length + " seconds";
+    document.querySelector("#streamBuffer").value = 0;
+    document.querySelector("#streamContentSize").innerText = `${mediaController.streamController.audioObject.SIZE} bytes || ${readableBytes(mediaController.streamController.audioObject.SIZE)}`;
+    document.querySelector("#duration").innerText = mediaController.streamController.audioObject.DURATION + " seconds";
     document.querySelector("#currentTime").innerText = "0";
-    document.querySelector("#streamBytesPerSecond").innerText = Math.round(streamController.stream.BYTES_PER_SECOND);
+    document.querySelector("#streamBytesPerSecond").innerText = Math.round(mediaController.streamController.audioObject.BYTES_PER_SECOND);
 
-    document.querySelector("#title").innerText = streamController.stream.METADATA.title;
-    document.querySelector("#artist").innerText = streamController.stream.METADATA.artist;
-    document.querySelector("#album").innerText = streamController.stream.METADATA.album;
-    document.querySelector("#genre").innerText = streamController.stream.METADATA.genre;
-    document.querySelector("#year").innerText = streamController.stream.METADATA.year;
+    document.querySelector("#title").innerText = mediaController.streamController.audioObject.ID;
 };
 
 view.onMediaBufferUpdate = function() {
@@ -32,12 +29,12 @@ view.onMediaBufferUpdate = function() {
     document.querySelector("#secondsBuffered").innerText = Math.round(mediaController.status.bufferedDuration);
     document.querySelector("#bytesBuffered").innerText = Math.round(mediaController.status.bufferedBytes) + " bytes";
     document.querySelector("#secondsBufferedUntil").innerText = Math.round(mediaController.status.bufferedUntil);
-    document.querySelector("#mediaChunks").innerText = `${mediaController.status.nextDataChunk} out of ${mediaController.status.dataChunksExpected}`;
+    document.querySelector("#mediaChunks").innerText = `${mediaController.status.nextDataChunk}`;
 };
 
 view.onMediaBufferReset = function() {
 
-    document.querySelector("#mediaChunks").innerText = "0 out of 0";
+    document.querySelector("#mediaChunks").innerText = "0";
     document.querySelector("#mediaBuffer").value = 0;
     document.querySelector("#secondsBuffered").innerText = "0";
     document.querySelector("#bytesBuffered").innerText = "0";
@@ -46,7 +43,7 @@ view.onMediaBufferReset = function() {
 };
 
 view.onPlaybackTimeChanged = function() {
-    document.getElementById("currentTime").innerText = Math.round(mediaController.AUDIO_FACADE.currentTime);
+    document.getElementById("currentTime").innerText = Math.round(mediaController.audioController.currentTime);
 };
 
 view.onMediaControllerInit = function() {
@@ -61,7 +58,7 @@ view.onMediaStateChange = function() {
 };
 
 view.onStreamStateChange = function() {
-    document.querySelector("#streamState").innerText = streamController.state.description;
+    document.querySelector("#streamState").innerText = mediaController.streamController.state.description;
 };
 
 view.onMediaBufferStrategyKnown = function() {

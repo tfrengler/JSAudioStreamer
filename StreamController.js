@@ -7,16 +7,16 @@ const StreamController = function(requestEntryPoint, desiredFragmentSize) {
     this.debug = true;
 
     this.validStates = Object.freeze({
-        NOT_STARTED: Symbol("NOT_STARTED"),
+        IDLE: Symbol("IDLE"),
         CONNECTING: Symbol("CONNECTING"),
-        READY_TO_STREAM: Symbol("READY_TO_STREAM"),
-        READING_FROM_STREAM: Symbol("READING_FROM_STREAM"),
-        UPDATING_AUDIO_OBJECT: Symbol("UPDATING_AUDIO_OBJECT"),
+        READY_TO_STREAM: Symbol("READY TO STREAM"),
+        READING_FROM_STREAM: Symbol("READING FROM STREAM"),
+        UPDATING_AUDIO_OBJECT: Symbol("UPDATING AUDIO OBJECT"),
         ABORTED: Symbol("ABORTED"),
         COMPLETED: Symbol("COMPLETED")
     });
 
-    this.state = this.validStates.NOT_STARTED;
+    this.state = this.validStates.IDLE;
     this.STREAM_REQUEST_ENTRY_POINT = requestEntryPoint || "ERROR";
     this.abortController = new AbortController();
     this.mediaController = {}; // Instance of mediaController
@@ -40,7 +40,7 @@ const StreamController = function(requestEntryPoint, desiredFragmentSize) {
 
 // #EXTERNAL
 StreamController.prototype.start = function() {
-    if ([this.validStates.NOT_STARTED, this.validStates.COMPLETED, this.validStates.ABORTED].includes(this.state))
+    if ([this.validStates.IDLE, this.validStates.COMPLETED, this.validStates.ABORTED].includes(this.state))
         return;
 
     if (this.debug) console.log(`STREAM: Opening stream (${this.STREAM_REQUEST_ENTRY_POINT})`);
@@ -71,7 +71,7 @@ StreamController.prototype.start = function() {
 };
 
 StreamController.prototype.read = function() {
-    if ([this.validStates.NOT_STARTED, this.validStates.COMPLETED, this.validStates.ABORTED].includes(this.state))
+    if ([this.validStates.IDLE, this.validStates.COMPLETED, this.validStates.ABORTED].includes(this.state))
         return false;
 
     this.changeState(this.validStates.READING_FROM_STREAM);
@@ -138,6 +138,8 @@ StreamController.prototype.calculateBufferedBytes = function() {
 };
 
 StreamController.prototype.updateAudioObject = function(arrayBuffer) {
+
+    if (!this.audioObject.addToBuffer) return;
     
     if (!this.audioObject.addToBuffer(arrayBuffer)) {
         this.stop();
@@ -145,30 +147,31 @@ StreamController.prototype.updateAudioObject = function(arrayBuffer) {
     }
 
     this.audioObject.lastUpdate = performance.now();
+    if (!this.audioObject.getFragmentCount) return;
     this.mediaController.status.nextAvailableDataChunk = this.audioObject.getFragmentCount() - 1;
 
     // INTERFACE UPDATE
-    // view.onInternalBufferUpdate(); Again, do this with events
+    view.onInternalBufferUpdate();
 
     this.read();
 };
 
 // #EXTERNAL
 StreamController.prototype.stop = function(reason) {
-    if ([this.validStates.NOT_STARTED, this.validStates.COMPLETED, this.validStates.ABORTED].includes(this.state))
+    if ([this.validStates.IDLE, this.validStates.COMPLETED, this.validStates.ABORTED].includes(this.state))
         return;
 
     if (this.debug) console.warn(`STREAM: Aborting stream (${reason || "no reason given"})`);
     this.changeState(this.validStates.ABORTED);
 
-    this.abortController.abort();
     this.stream.cancel();
+    this.abortController.abort();
     
     return true;
 };
 
 StreamController.prototype.reset = function() {
-    if ([this.validStates.NOT_STARTED].includes(this.state))
+    if ([this.validStates.IDLE].includes(this.state))
         return;
 
     if (this.debug) console.log("STREAM: Resetting controller to its default state");
@@ -177,15 +180,15 @@ StreamController.prototype.reset = function() {
     this.audioObject = {};
     this.abortController = new AbortController();
 
-    this.changeState(this.validStates.NOT_STARTED);
+    this.changeState(this.validStates.IDLE);
 };
 
 // #EXTERNAL
 StreamController.prototype.load = function(audioObject) {
-    this.audioObject = (audioObject && audioObject instanceof AudioObject ? audioObject : "ERROR!");
-    if (this.debug) console.log(`STREAM: Preparing for new stream (${this.audioObject.ID}, ${this.audioObject.SIZE} bytes, ${this.audioObject.MIME_TYPE})`);
-
+    if (this.debug) console.log(`STREAM: Preparing for new stream (${audioObject.ID}, ${audioObject.SIZE} bytes, ${audioObject.MIME_TYPE})`);
+    
     this.reset();
+    this.audioObject = (audioObject && audioObject instanceof AudioObject ? audioObject : "ERROR!");
     this.changeState(this.validStates.READY_TO_STREAM);
 
     return true;
@@ -198,7 +201,7 @@ StreamController.prototype.changeState = function(newState) {
     }
 
     this.state = newState;
-    // view.onStreamStateChange();
+    view.onStreamStateChange();
 };
 
 StreamController.prototype.registerMediaController = function(self) {

@@ -7,11 +7,13 @@ const MediaController = function(streamController) { // eslint-disable-line no-u
     this.debug = true;
 
     this.validStates = Object.freeze({
+        IDLE: Symbol("IDLE"),
         INITIALIZING: Symbol("INITIALIZING"),
-        READY: Symbol("READY"),
+        READY_TO_PLAY: Symbol("READY TO PLAY"),
         BUFFERING: Symbol("BUFFERING"),
         STALLED: Symbol("STALLED"),
-        WAITING: Symbol("WAITING"),
+        HAS_ENOUGH_DATA: Symbol("PAUSED, HAS ENOUGH DATA"),
+        WAITING_FOR_DATA: Symbol("WAITING FOR DATA"),
         COMPLETED: Symbol("COMPLETED"),
         RESET: Symbol("RESET"),
         STOPPING: Symbol("STOPPING")
@@ -36,8 +38,10 @@ const MediaController = function(streamController) { // eslint-disable-line no-u
     this.BUFFER_TRIM_SECONDS = 60; // How many seconds of audio is kept behind the current play position
     this.BUFFER_UPDATE_INTERVAL = 2000 // ms
     this.CHUNK_NOT_AVAILABLE_RETRY = 2000 // How many ms to wait to try again if the next audio data chunk isn't available
-    this.audioController = document.getElementsByTagName("audio")[0] //new Audio();
+    this.audioController = new Audio(); //document.getElementsByTagName("audio")[0]
+    
     this.audioController.setAttribute("preload", "metadata");
+    this.audioController.autoplay = false;
 
     this.status = {}; // Instance of StatusTracker
 
@@ -79,7 +83,7 @@ MediaController.prototype.onPause = function() {
 
 MediaController.prototype.onPlayable = function() {
     if (this.debug) console.log("MEDIA: Enough data to play media");
-    this.audioController.play();
+    if (this.status.playWhenDataAvailable) this.audioController.play();
 };
 
 MediaController.prototype.onError = function(error) {
@@ -88,6 +92,7 @@ MediaController.prototype.onError = function(error) {
 
 MediaController.prototype.onStalled = function() {
     if (this.debug) console.warn("MEDIA: Playback/buffering has stalled, due to lack of data");
+    this.status.playWhenDataAvailable = true;
     this.changeState(this.validStates.STALLED);
 };
 
@@ -105,7 +110,7 @@ MediaController.prototype.onPlaybackTimeChanged = function() {
         return;
 
     this.status.lastPlaytimeUpdate = performance.now();
-    // view.onPlaybackTimeChanged();
+    view.onPlaybackTimeChanged();
 
     if (
             this.status.bufferStrategy === this.bufferStrategies.INCREMENT && 
@@ -118,7 +123,7 @@ MediaController.prototype.onBufferUpdated = function() {
 
     this.calculateBufferedDuration();
     this.calculateBufferedUntil();
-    // view.onMediaBufferUpdate();
+    view.onMediaBufferUpdate();
 
     if (this.status.bufferBeingTrimmed === true) {
         console.log("MEDIA: Audio buffer has been trimmed");
@@ -149,7 +154,8 @@ MediaController.prototype.onBufferUpdated = function() {
 
 // METHODS
 MediaController.prototype.reset = function() {
-    // view.onMediaBufferReset();
+    view.onMediaBufferReset();
+
     URL.revokeObjectURL(this.audioController.src);
     this.status = new this.StatusTracker(this.validStates.RESET);
 
@@ -186,24 +192,33 @@ MediaController.prototype.calculateBufferedUntil = function() {
 
 // #EXTERNAL
 MediaController.prototype.load = function(audioObject) {
+    this.changeState(this.validStates.INITIALIZING);
+    console.warn("MEDIA: Initializing new audio object");
+
     if (!audioObject ||(audioObject && !audioObject instanceof AudioObject)) {
         console.error("MEDIA: audioObject is defined or not an instance of AudioObject");
+        this.changeState(this.validStates.IDLE);
         return false;
     }
 
     // If mimetype isn't supported, there's no need to go any further
     if (!MediaSource.isTypeSupported(audioObject.MIME_TYPE)) {
         console.error("MEDIA: Browser does not support this audio type: " + audioObject.MIME_TYPE);
+        this.changeState(this.validStates.IDLE);
         return false;
     }
 
     this.streamController.stop("New media loaded");
-    this.changeState(this.validStates.INITIALIZING);
     this.reset();
-    // view.onMediaMimetypeKnown(mimeType);
+    this.decideBufferStrategy(audioObject.SIZE);
+    
+    view.onMediaMimetypeKnown(audioObject.MIME_TYPE);
 
+    // We load the stream and start it already
     this.streamController.load(audioObject);
     this.streamController.start();
+
+    view.onNewStreamLoaded();
 
     this.status.mediaSource = new MediaSource();
     this.audioController.src = URL.createObjectURL(this.status.mediaSource);
@@ -217,6 +232,19 @@ MediaController.prototype.load = function(audioObject) {
     return true;
 };
 
+MediaController.prototype.decideBufferStrategy = function(audioObjectSize) {
+    if (audioObjectSize < this.BUFFER_MAX_SIZE) {
+        if (this.debug) console.log(`MEDIA: Audio data is less than our audio buffer size (${audioObjectSize}), buffering fully`);
+        this.status.bufferStrategy = this.bufferStrategies.FILL;
+        view.onMediaBufferStrategyKnown();
+        return;
+    }
+
+    if (this.debug) console.log(`MEDIA: Audio data is bigger than our audio buffer size (${audioObjectSize}), buffering incrementally`);
+    this.status.bufferStrategy = this.bufferStrategies.INCREMENT;
+    view.onMediaBufferStrategyKnown();
+};
+
 MediaController.prototype.initMediaSourceAndSourceBuffer = function(mimeType, duration) {
     this.status.buffer = this.status.mediaSource.addSourceBuffer(mimeType);
     this.status.mediaSource.duration = duration;
@@ -224,7 +252,7 @@ MediaController.prototype.initMediaSourceAndSourceBuffer = function(mimeType, du
     this.status.buffer.addEventListener("update", ()=> this.onBufferUpdated());
     this.status.mediaSource.addEventListener("sourceended", ()=> this.onSourceClosed());
 
-    this.changeState(this.validStates.READY);
+    this.changeState(this.validStates.READY_TO_PLAY);
     if (this.debug) console.log(`MEDIA: Controller initialized, ready to audio buffer and play audio data (${mimeType})`);
 };
 
@@ -246,13 +274,25 @@ MediaController.prototype.updateAudioBuffer = function() {
         return true;
     };
 
+
     if (this.debug) console.log(`MEDIA: Updating audio buffer (chunk ${this.status.nextDataChunk})`);
-    const dataChunk = this.streamController.audioObject.getFragment(this.status.nextDataChunk);
-    if (this.debug) console.log(`MEDIA: Appending data chunk to audio buffer (${dataChunk.byteLength} bytes)`);
+    let dataChunk = 0;
+
+    if (this.streamController.audioObject.getFragment)
+        dataChunk = this.streamController.audioObject.getFragment(this.status.nextDataChunk);
+    else
+        return false;
+    
+        if (this.debug) console.log(`MEDIA: Appending data chunk to audio buffer (${dataChunk.byteLength} bytes)`);
     
     this.status.nextDataChunk++;
     this.status.bufferedBytes = this.status.bufferedBytes + dataChunk.byteLength;
-    this.status.buffer.appendBuffer(dataChunk);
+    
+    if (this.status.buffer.appendBuffer)
+        this.status.buffer.appendBuffer(dataChunk);
+    else
+        return;
+
     this.status.lastUpdate = performance.now();
 
     return true;
@@ -280,14 +320,18 @@ MediaController.prototype.trimBuffer = function(start, end) {
 
 // #EXTERNAL
 MediaController.prototype.startPlayback = function() {
-    if (this.status.state !== this.validStates.READY && this.audioController.paused) {
+    if (![this.validStates.READY_TO_PLAY, this.validStates.INITIALIZING].includes(this.status.state) && this.audioController.paused) {
         this.audioController.play();
         return;
     }
 
     console.log("MEDIA: Starting playback and audio data buffering");
-    // this.streamController.start();
-    this.prepare();
+    this.status.playWhenDataAvailable = true;
+
+    if (this.status.bufferStrategy === this.bufferStrategies.INCREMENT)
+        this.bufferIncrementally();
+    else if (this.status.bufferStrategy === this.bufferStrategies.FILL)
+        this.bufferFully();
 };
 
 // #EXTERNAL
@@ -296,55 +340,12 @@ MediaController.prototype.pausePlayback = function() {
     this.audioController.pause();
 };
 
-// #EXTERNAL
-MediaController.prototype.stopPlayback = function() {
-    if ([this.validStates.INITIALIZING].includes(this.status.state))
-        return false;
-
-    if (this.debug) console.log("MEDIA: Stopping playback, and resetting media back to the start");
-    this.changeState(this.validStates.STOPPING);
-
-    this.streamController.stop("Playback stopped");
-    this.audioController.pause();
-    URL.revokeObjectURL(this.audioController.src);
-    
-    let nextAvailableDataChunk = this.status.nextAvailableDataChunk;
-    this.reset();
-    this.status.nextAvailableDataChunk = nextAvailableDataChunk;
-
-    this.status.mediaSource = new MediaSource();
-    this.audioController.src = URL.createObjectURL(this.status.mediaSource);
-
-    this.status.mediaSource.addEventListener('sourceopen', ()=> this.initMediaSourceAndSourceBuffer(
-            this.streamController.audioObject.MIME_TYPE,
-            this.streamController.audioObject.DURATION
-        )
-    );
-};
-
-MediaController.prototype.prepare = function() {
-
-    if (this.streamController.audioObject.SIZE < this.BUFFER_MAX_SIZE) {
-        if (this.debug) console.log(`MEDIA: Audio data is less than our audio buffer size (${this.streamController.audioObject.SIZE}), buffering fully`);
-        this.status.bufferStrategy = this.bufferStrategies.FILL;
-        // view.onMediaBufferStrategyKnown();
-        this.bufferFully();
-    }
-    else {
-        if (this.debug) console.log(`MEDIA: Audio data is bigger than our audio buffer size (${this.streamController.audioObject.SIZE}), buffering incrementally`);
-        this.status.bufferStrategy = this.bufferStrategies.INCREMENT;
-        // view.onMediaBufferStrategyKnown();
-        this.bufferIncrementally();
-    }
-
-};
-
 MediaController.prototype.bufferFully = function() {
 
     if (!this.status.streamComplete && this.status.nextDataChunk > this.status.nextAvailableDataChunk) {
         if (this.debug) console.warn(`MEDIA: Next data chunk isn't available yet, waiting (${this.CHUNK_NOT_AVAILABLE_RETRY})`);
         
-        this.changeState(this.validStates.WAITING);
+        this.changeState(this.validStates.WAITING_FOR_DATA);
         wait(this.CHUNK_NOT_AVAILABLE_RETRY).then(()=> this.bufferFully());
         
         return false;
@@ -354,8 +355,6 @@ MediaController.prototype.bufferFully = function() {
 
     if (lastUpdateDifference < this.BUFFER_UPDATE_INTERVAL) {
         if (this.debug) console.warn(`MEDIA: Buffer updated less than ${this.BUFFER_UPDATE_INTERVAL}ms ago (${Math.round(lastUpdateDifference)}ms). Throttling`);
-        
-        this.changeState(this.validStates.WAITING);
         wait(this.BUFFER_UPDATE_INTERVAL + 5).then(()=> this.bufferFully());
         
         return false;
@@ -374,6 +373,7 @@ MediaController.prototype.bufferIncrementally = function() {
     const timeDifference = this.status.bufferedUntil - playCursor;
 
     if (timeDifference < this.BUFFER_AHEAD_THRESHOLD) {
+        this.changeState(this.validStates.BUFFERING); 
         if (this.debug) console.warn(`MEDIA: Less than ${this.BUFFER_AHEAD_THRESHOLD} playable seconds in audio buffer`);
 
         if (playCursor - this.status.bufferLastTrimmed > this.BUFFER_TRIM_SECONDS) {
@@ -381,8 +381,7 @@ MediaController.prototype.bufferIncrementally = function() {
             this.trimBuffer(this.status.buffer.buffered.start(0), playCursor - 5);
             return;
         }
-
-        this.changeState(this.validStates.BUFFERING); 
+        
         this.status.bufferAheadMark = this.audioController.currentTime;
         this.status.bufferingAhead = true;
         this.bufferAhead();
@@ -390,10 +389,10 @@ MediaController.prototype.bufferIncrementally = function() {
         return true;
     }
 
-    if (this.status.state !== this.validStates.WAITING)
+    if (this.status.state !== this.validStates.HAS_ENOUGH_DATA) {
+        this.changeState(this.validStates.HAS_ENOUGH_DATA);
         if (this.debug) console.log(`MEDIA: Enough data in audio buffer, waiting until ${(this.status.bufferedUntil - this.BUFFER_AHEAD_THRESHOLD).toFixed(2)}`);
-    
-    this.changeState(this.validStates.WAITING);
+    }
 };
 
 MediaController.prototype.closeStream = function() {
@@ -420,7 +419,7 @@ MediaController.prototype.bufferAhead = function() {
     if (!this.status.streamComplete && this.status.nextDataChunk > this.status.nextAvailableDataChunk) {
         if (this.debug) console.warn(`MEDIA: Next data chunk isn't available yet, waiting (${this.CHUNK_NOT_AVAILABLE_RETRY})`);
         
-        this.changeState(this.validStates.WAITING);
+        this.changeState(this.validStates.WAITING_FOR_DATA);
         wait(this.CHUNK_NOT_AVAILABLE_RETRY).then(()=> this.bufferAhead());
         
         return false;
@@ -442,7 +441,7 @@ MediaController.prototype.changeState = function(newState) {
     }
 
     this.status.state = newState;
-    // view.onMediaStateChange();
+    view.onMediaStateChange();
 };
 
 // OBJECT CONSTRUCTOR
@@ -456,6 +455,7 @@ MediaController.prototype.StatusTracker = function(initialState) {
     this.bufferedDuration = 0.0; //Seconds
     this.bufferedUntil = 0.0; //Seconds
     this.nextDataChunk = 0;
+    this.playWhenDataAvailable = false;
     this.nextAvailableDataChunk = -1; // This will be updated by the streamcontroller
     this.streamComplete = false; // This will be updated by the streamcontroller
     this.bufferingComplete = false;
