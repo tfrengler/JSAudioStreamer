@@ -5,6 +5,34 @@
 var streamController = Object.create(null);
 var mediaController = Object.create(null);
 
+var nextTrack = {};
+var semaphore = false;
+
+const test = function(currentTime) {
+    if (semaphore)
+        return;
+
+    if (mediaController.getAudioFacade().duration - currentTime > 10)
+        return;
+
+    semaphore = true;
+    console.warn("SETTING UP NEXT TRACK!");
+
+    nextTrack = new StreamController(
+        new AudioObject("The Who - You Better You Bet", 13563686, 339, "audio/mpeg"),
+        "GetAudio.cfm"
+    );
+
+    nextTrack.start();
+};
+
+const test2 = function() {
+    console.warn("STARTING NEXT TRACK!");
+
+    mediaController.load(nextTrack);
+    mediaController.startPlayback();
+};
+
 const init = function() { // eslint-disable-line no-unused-vars
 
     if (!compatibilityCheck()) {
@@ -14,10 +42,13 @@ const init = function() { // eslint-disable-line no-unused-vars
 
     document.querySelector("#project").style.display = "block";
 
-    mediaController = new MediaController(new StreamController("GetAudio.cfm"));
+    mediaController = new MediaController();
 
     setupInterfaceEvents();
     view.onMediaControllerInit();
+
+    mediaController.getAudioFacade().addEventListener("timeupdate", ()=> test(mediaController.getAudioFacade().currentTime));
+    mediaController.getAudioFacade().addEventListener("ended", test2);
 
     console.log("Init done, ready to rock!");
 };
@@ -71,22 +102,44 @@ const readableBytes = function(bytes) { // eslint-disable-line no-unused-vars
     return (bytes / Math.pow(1024, i)).toFixed(2) * 1 + ' ' + sizes[i];
 };
 
+const getReadableTime = function(time) {
+    time = Math.round(time);
+    const minutes = (time / 60 > 0 ? parseInt(time / 60) : 0);
+    const seconds = (time > 60 ? time % 60 : time);
+    return `${minutes > 9 ? minutes : "0" + minutes}:${seconds > 9 ? seconds : "0" + seconds}`;
+};
+
 const setupInterfaceEvents = function() {
 
     document.getElementById("play").addEventListener("click", ()=> mediaController.startPlayback());
     document.getElementById("pause").addEventListener("click", ()=> mediaController.audioController.pause());
 
-    document.getElementById("The Police").addEventListener("click", ()=> 
-        mediaController.load( new AudioObject("The Police - Roxanne", 3951462, 191, "audio/mpeg") )
-    );
+    document.getElementById("The Police").addEventListener("click", ()=> {
+        let stream = new StreamController(
+            new AudioObject("The Police - Roxanne", 3951462, 191, "audio/mpeg"),
+            "GetAudio.cfm"
+        );
+        mediaController.load(stream);
+        mediaController.getStream().start();
+    });
 
-    document.getElementById("The Who").addEventListener("click", ()=> 
-        mediaController.load( new AudioObject("The Who - You Better You Bet", 13563686, 339, "audio/mpeg") )
-    );
+    document.getElementById("The Who").addEventListener("click", ()=> {
+        let stream = new StreamController(
+            new AudioObject("The Who - You Better You Bet", 13563686, 339, "audio/mpeg"),
+            "GetAudio.cfm"
+        );
+        mediaController.load(stream);
+        mediaController.getStream().start();
+    });
     
-    document.getElementById("Devin").addEventListener("click", ()=> 
-        mediaController.load( new AudioObject("Devin Townsend Project - The Mighty Masturbator", 35564574, 988, "audio/mpeg") )
-    );
+    document.getElementById("Devin").addEventListener("click", ()=> {
+        let stream = new StreamController(
+            new AudioObject("Devin Townsend Project - The Mighty Masturbator", 35564574, 988, "audio/mpeg"),
+            "GetAudio.cfm"
+        );
+        mediaController.load(stream);
+        mediaController.getStream().start();
+    });
 
     console.log("Interface event handlers set up");
 };

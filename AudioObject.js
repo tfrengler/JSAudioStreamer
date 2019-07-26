@@ -9,18 +9,7 @@ const AudioObject = function(id, size, duration, mimeType) { // eslint-disable-l
     this.MIME_TYPE = mimeType || "UNKNOWN";
     this.dataFragments = new Set(); // list of array buffers (Uint8Array)
 
-    this.lastUpdate = 0.0; // performance.now() 
-
-    Object.defineProperties(this, {
-        "ID": {configurable: false, enumerable: true, writable: false},
-        "SIZE": {configurable: false, enumerable: true, writable: false},
-        "BYTES_PER_SECOND": {configurable: false, enumerable: true, writable: false},
-        "DURATION": {configurable: false, enumerable: true, writable: false},
-        "MIME_TYPE": {configurable: false, enumerable: true, writable: false},
-        "dataFragments": {configurable: false, enumerable: true, writable: false}
-    });
-
-    return Object.seal(this);
+    return Object.freeze(this);
 };
 
 AudioObject.prototype.getStoredBytes = function() {

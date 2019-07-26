@@ -1,8 +1,6 @@
 "use strict";
 
-/* globals view StreamController streamController wait */
-
-const MediaController = function(streamController) { // eslint-disable-line no-unused-vars
+const MediaController = function() { // eslint-disable-line no-unused-vars
 
     this.debug = true;
 
@@ -23,13 +21,6 @@ const MediaController = function(streamController) { // eslint-disable-line no-u
         INCREMENT: Symbol("INCREMENT"),
         FILL: Symbol("FILL")
     });
-
-    if (streamController && streamController instanceof StreamController) {
-        this.streamController = streamController;
-        this.streamController.registerMediaController(this);
-    }
-    else
-        this.streamController = "ERROR!";
     
     this.BUFFER_MAX_SIZE = 10 * 1024 * 1024 ; // The size of the audio buffer in bytes. Lowest observed is 12MB for Firefox
     this.BUFFER_LOCK_RETRY = 1000; // How many ms to retry updating the buffer if it was locked
@@ -44,6 +35,7 @@ const MediaController = function(streamController) { // eslint-disable-line no-u
     this.audioController.autoplay = false;
 
     this.status = {}; // Instance of StatusTracker
+    this.stream = {}; // Instance of StreamController
 
     // Locking properties
     Object.defineProperties(this, {
@@ -55,7 +47,6 @@ const MediaController = function(streamController) { // eslint-disable-line no-u
         BUFFER_AHEAD: {configurable: false, enumerable: true, writable: false},
         BUFFER_TRIM_SECONDS: {configurable: false, enumerable: true, writable: false},
         audioController: {configurable: false, enumerable: true, writable: false},
-        streamController: {configurable: false, enumerable: true, writable: false},
         CHUNK_NOT_AVAILABLE_RETRY: {configurable: false, enumerable: true, writable: false}
     });
 
@@ -65,7 +56,7 @@ const MediaController = function(streamController) { // eslint-disable-line no-u
     this.audioController.addEventListener("canplay", ()=> this.onPlayable());
     this.audioController.addEventListener("error", ()=> this.onError());
     this.audioController.addEventListener("stalled", ()=> this.onStalled());
-    this.audioController.addEventListener("waiting", ()=> this.onStalled());
+    // this.audioController.addEventListener("waiting", ()=> this.onStalled());
     this.audioController.addEventListener("ended", ()=> this.onPlaybackEnded());
     this.audioController.addEventListener("timeupdate", ()=> this.onPlaybackTimeChanged());
 
@@ -191,41 +182,42 @@ MediaController.prototype.calculateBufferedUntil = function() {
 };
 
 // #EXTERNAL
-MediaController.prototype.load = function(audioObject) {
+MediaController.prototype.load = function(audioStream) {
     this.changeState(this.validStates.INITIALIZING);
     console.warn("MEDIA: Initializing new audio object");
 
-    if (!audioObject ||(audioObject && !audioObject instanceof AudioObject)) {
-        console.error("MEDIA: audioObject is defined or not an instance of AudioObject");
+    if (!audioStream || (audioStream && !audioStream instanceof StreamController)) {
+        console.error("MEDIA: audioStream is defined or not an instance of StreamController");
         this.changeState(this.validStates.IDLE);
         return false;
     }
+
+    // If we have another stream already, stop it
+    if (this.stream.stop) this.stream.stop("New media loaded");
+
+    this.stream = audioStream;
+    this.stream.registerCallback("streamComplete", this.onStreamComplete, this);
+    this.stream.registerCallback("fragmentAvailable", this.onNextAvailableFragment, this);
 
     // If mimetype isn't supported, there's no need to go any further
-    if (!MediaSource.isTypeSupported(audioObject.MIME_TYPE)) {
-        console.error("MEDIA: Browser does not support this audio type: " + audioObject.MIME_TYPE);
+    if (!MediaSource.isTypeSupported(audioStream.getStreamObject().MIME_TYPE)) {
+        console.error("MEDIA: Browser does not support this audio type: " + audioStream.getStreamObject().MIME_TYPE);
         this.changeState(this.validStates.IDLE);
         return false;
     }
-
-    this.streamController.stop("New media loaded");
-    this.reset();
-    this.decideBufferStrategy(audioObject.SIZE);
     
-    view.onMediaMimetypeKnown(audioObject.MIME_TYPE);
-
-    // We load the stream and start it already
-    this.streamController.load(audioObject);
-    this.streamController.start();
-
+    this.reset();
+    this.decideBufferStrategy(audioStream.getStreamObject().SIZE);
+    
+    view.onMediaMimetypeKnown(audioStream.getStreamObject().MIME_TYPE);
     view.onNewStreamLoaded();
 
     this.status.mediaSource = new MediaSource();
     this.audioController.src = URL.createObjectURL(this.status.mediaSource);
 
     this.status.mediaSource.addEventListener('sourceopen', ()=> this.initMediaSourceAndSourceBuffer(
-            audioObject.MIME_TYPE,
-            audioObject.DURATION
+            audioStream.getStreamObject().MIME_TYPE,
+            audioStream.getStreamObject().DURATION
         )
     );
 
@@ -278,8 +270,8 @@ MediaController.prototype.updateAudioBuffer = function() {
     if (this.debug) console.log(`MEDIA: Updating audio buffer (chunk ${this.status.nextDataChunk})`);
     let dataChunk = 0;
 
-    if (this.streamController.audioObject.getFragment)
-        dataChunk = this.streamController.audioObject.getFragment(this.status.nextDataChunk);
+    if (this.stream.getStreamObject().getFragment)
+        dataChunk = this.stream.getStreamObject().getFragment(this.status.nextDataChunk);
     else
         return false;
     
@@ -308,7 +300,7 @@ MediaController.prototype.trimBuffer = function(start, end) {
     }
 
     const removeDuration = end - start;
-    const bytesRemoved = this.streamController.audioObject.BYTES_PER_SECOND * removeDuration;
+    const bytesRemoved = this.stream.getStreamObject().BYTES_PER_SECOND * removeDuration;
 
     this.status.bufferedBytes = this.status.bufferedBytes - bytesRemoved;
     console.log(`MEDIA: Attempting to remove ${Math.round(removeDuration)} seconds of data from the audio buffer (est. ${Math.round(bytesRemoved)} bytes)`);
@@ -322,7 +314,7 @@ MediaController.prototype.trimBuffer = function(start, end) {
 MediaController.prototype.startPlayback = function() {
     if (![this.validStates.READY_TO_PLAY, this.validStates.INITIALIZING].includes(this.status.state) && this.audioController.paused) {
         this.audioController.play();
-        return;
+        return false;
     }
 
     console.log("MEDIA: Starting playback and audio data buffering");
@@ -442,6 +434,30 @@ MediaController.prototype.changeState = function(newState) {
 
     this.status.state = newState;
     view.onMediaStateChange();
+};
+
+MediaController.prototype.getStream = function() {
+    return this.stream || {};
+};
+
+MediaController.prototype.getAudioFacade = function() {
+    return this.audioController;
+};
+
+MediaController.prototype.getState = function() {
+    return this.status.state.description;
+};
+
+MediaController.prototype.getStatus = function() {
+    return this.status;
+};
+
+MediaController.prototype.onStreamComplete = function() {
+    this.status.streamComplete = true;
+};
+
+MediaController.prototype.onNextAvailableFragment = function(index) {
+    this.status.nextAvailableDataChunk = index || -1;
 };
 
 // OBJECT CONSTRUCTOR
