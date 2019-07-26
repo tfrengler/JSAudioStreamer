@@ -7,6 +7,7 @@ var mediaController = Object.create(null);
 
 var nextTrack = {};
 var semaphore = false;
+const APIEntryPoint = "http://asgard/DevTools/Thomas/JSAudioStreamer2/GetAudio.cfm";
 
 const test = function(currentTime) {
     if (semaphore)
@@ -20,7 +21,7 @@ const test = function(currentTime) {
 
     nextTrack = new StreamController(
         new AudioObject("The Who - You Better You Bet", 13563686, 339, "audio/mpeg"),
-        "GetAudio.cfm"
+        APIEntryPoint
     );
 
     nextTrack.start();
@@ -98,7 +99,6 @@ const wait = function(ms) { // eslint-disable-line no-unused-vars
 const readableBytes = function(bytes) { // eslint-disable-line no-unused-vars
     var i = Math.floor(Math.log(bytes) / Math.log(1024)),
     sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
-
     return (bytes / Math.pow(1024, i)).toFixed(2) * 1 + ' ' + sizes[i];
 };
 
@@ -109,6 +109,13 @@ const getReadableTime = function(time) {
     return `${minutes > 9 ? minutes : "0" + minutes}:${seconds > 9 ? seconds : "0" + seconds}`;
 };
 
+const shuffleArray = function(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+};
+
 const setupInterfaceEvents = function() {
 
     document.getElementById("play").addEventListener("click", ()=> mediaController.startPlayback());
@@ -117,7 +124,7 @@ const setupInterfaceEvents = function() {
     document.getElementById("The Police").addEventListener("click", ()=> {
         let stream = new StreamController(
             new AudioObject("The Police - Roxanne", 3951462, 191, "audio/mpeg"),
-            "GetAudio.cfm"
+            APIEntryPoint
         );
         mediaController.load(stream);
         mediaController.getStream().start();
@@ -126,7 +133,7 @@ const setupInterfaceEvents = function() {
     document.getElementById("The Who").addEventListener("click", ()=> {
         let stream = new StreamController(
             new AudioObject("The Who - You Better You Bet", 13563686, 339, "audio/mpeg"),
-            "GetAudio.cfm"
+            APIEntryPoint
         );
         mediaController.load(stream);
         mediaController.getStream().start();
@@ -135,7 +142,7 @@ const setupInterfaceEvents = function() {
     document.getElementById("Devin").addEventListener("click", ()=> {
         let stream = new StreamController(
             new AudioObject("Devin Townsend Project - The Mighty Masturbator", 35564574, 988, "audio/mpeg"),
-            "GetAudio.cfm"
+            APIEntryPoint
         );
         mediaController.load(stream);
         mediaController.getStream().start();

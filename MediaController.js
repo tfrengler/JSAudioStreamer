@@ -196,6 +196,7 @@ MediaController.prototype.load = function(audioStream) {
     if (this.stream.stop) this.stream.stop("New media loaded");
 
     this.stream = audioStream;
+    // Have to reconsider reversing this relationship so that the mediaController reads these values from the stream
     this.stream.registerCallback("streamComplete", this.onStreamComplete, this);
     this.stream.registerCallback("fragmentAvailable", this.onNextAvailableFragment, this);
 

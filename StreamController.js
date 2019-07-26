@@ -20,6 +20,7 @@ const StreamController = function(audioObject, requestEntryPoint, desiredFragmen
     this.abortController = new AbortController();
     this.audioObject = audioObject; // Instance of AudioObject
     this.reader = {}; // Instance of ReadableStreamDefaultReader
+    // Have to reconsider reversing this relationship so that the mediaController reads these values from the stream
     this.complete = false;
     this.nextFragment = -1;
 
@@ -188,6 +189,7 @@ StreamController.prototype.changeState = function(newState) {
     view.onStreamStateChange();
 };
 
+// Have to reconsider reversing this relationship so that the mediaController reads these values from the stream
 StreamController.prototype.registerCallback = function(event, callback, context) {
     if (this.events[event])
         return false;
