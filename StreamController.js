@@ -20,17 +20,9 @@ const StreamController = function(audioObject, requestEntryPoint, desiredFragmen
     this.abortController = new AbortController();
     this.audioObject = audioObject; // Instance of AudioObject
     this.reader = {}; // Instance of ReadableStreamDefaultReader
-    // Have to reconsider reversing this relationship so that the mediaController reads these values from the stream
-    this.complete = false;
-    this.nextFragment = -1;
 
-    this.FRAGMENT_THRESHOLD = desiredFragmentSize || 512 * 1024; // Threshold at which existing chunks are combined (called a "fragment") and handed to the audio object
+    this.FRAGMENT_THRESHOLD = parseInt(desiredFragmentSize || NaN) || 512 * 1024; // Threshold at which existing chunks are combined (called a "fragment") and handed to the audio object
     this.chunkBuffer = new Set(); // Holds the chunks read from the stream, which gets purged every time the threshold is reached, and a fragment is created from the combined chunks available
-
-    this.events = Object.seal({
-        streamComplete: null,
-        fragmentAvailable: null
-    });
 
     // Locking properties
     Object.defineProperties(this, {
@@ -39,7 +31,7 @@ const StreamController = function(audioObject, requestEntryPoint, desiredFragmen
         "FRAGMENT_THRESHOLD": {configurable: false, enumerable: true, writable: false},
         "chunkBuffer": {configurable: false, enumerable: true, writable: false},
         "audioObject": {configurable: false, enumerable: true, writable: false},
-        "events": {configurable: false, enumerable: true, writable: false}
+        "abortController": {configurable: false, enumerable: true, writable: false}
     });
 
     if (this.debug) console.log(`STREAM: Controller created for new stream (ID: ${audioObject.ID}, SIZE: ${audioObject.SIZE} bytes, MIME_TYPE: ${audioObject.MIME_TYPE}, ENTRY POINT: ${this.STREAM_REQUEST_ENTRY_POINT})`);
@@ -91,8 +83,6 @@ StreamController.prototype.read = function() {
 
         if (result.done) {
             this.changeState(this.validStates.COMPLETED);
-            
-            if (this.events.streamComplete) this.events.streamComplete();
             this.reader.cancel();
 
             if (this.calculateBufferedBytes() > 0) // Any remaining data in the buffer needs to be dealt with of course
@@ -156,9 +146,6 @@ StreamController.prototype.updateAudioObject = function(arrayBuffer) {
         return;
     }
 
-    if (!this.audioObject.getFragmentCount) return; // Stream may have been cancelled while this was going on
-    if (this.events.fragmentAvailable) this.events.fragmentAvailable(this.audioObject.getFragmentCount() - 1);
-
     // INTERFACE UPDATE
     view.onInternalBufferUpdate();
 
@@ -189,18 +176,22 @@ StreamController.prototype.changeState = function(newState) {
     view.onStreamStateChange();
 };
 
-// Have to reconsider reversing this relationship so that the mediaController reads these values from the stream
-StreamController.prototype.registerCallback = function(event, callback, context) {
-    if (this.events[event])
-        return false;
-
-    this.events[event] = callback.bind(context);
-};
-
+// #EXTERNAL
 StreamController.prototype.getStreamObject = function() {
     return this.audioObject || {};
 };
 
+// #EXTERNAL
 StreamController.prototype.getState = function() {
     return this.state.description;
+};
+
+// #EXTERNAL
+StreamController.prototype.isComplete = function() {
+    return this.state === this.validStates.COMPLETED;
+};
+
+// #EXTERNAL
+StreamController.prototype.getLatestFragmentIndex = function() {
+    return this.audioObject.getFragmentCount() - 1;
 };

@@ -27,9 +27,9 @@ const MediaController = function() { // eslint-disable-line no-unused-vars
     this.BUFFER_AHEAD_THRESHOLD = 10; // When the play cursor gets below this threshold, buffer more audio
     this.BUFFER_AHEAD = 60; // How many seconds of audio is buffered ahead
     this.BUFFER_TRIM_SECONDS = 60; // How many seconds of audio is kept behind the current play position
-    this.BUFFER_UPDATE_INTERVAL = 2000 // ms
+    this.BUFFER_UPDATE_INTERVAL = 1000 // ms
     this.CHUNK_NOT_AVAILABLE_RETRY = 2000 // How many ms to wait to try again if the next audio data chunk isn't available
-    this.audioController = new Audio(); //document.getElementsByTagName("audio")[0]
+    this.audioController = new Audio();
     
     this.audioController.setAttribute("preload", "metadata");
     this.audioController.autoplay = false;
@@ -46,6 +46,7 @@ const MediaController = function() { // eslint-disable-line no-unused-vars
         BUFFER_AHEAD_THRESHOLD: {configurable: false, enumerable: true, writable: false},
         BUFFER_AHEAD: {configurable: false, enumerable: true, writable: false},
         BUFFER_TRIM_SECONDS: {configurable: false, enumerable: true, writable: false},
+        BUFFER_UPDATE_INTERVAL: {configurable: false, enumerable: true, writable: false},
         audioController: {configurable: false, enumerable: true, writable: false},
         CHUNK_NOT_AVAILABLE_RETRY: {configurable: false, enumerable: true, writable: false}
     });
@@ -196,9 +197,6 @@ MediaController.prototype.load = function(audioStream) {
     if (this.stream.stop) this.stream.stop("New media loaded");
 
     this.stream = audioStream;
-    // Have to reconsider reversing this relationship so that the mediaController reads these values from the stream
-    this.stream.registerCallback("streamComplete", this.onStreamComplete, this);
-    this.stream.registerCallback("fragmentAvailable", this.onNextAvailableFragment, this);
 
     // If mimetype isn't supported, there's no need to go any further
     if (!MediaSource.isTypeSupported(audioStream.getStreamObject().MIME_TYPE)) {
@@ -260,7 +258,7 @@ MediaController.prototype.updateAudioBuffer = function() {
         return false;
     }
 
-    if (this.status.streamComplete && this.status.nextDataChunk > this.status.nextAvailableDataChunk) {
+    if (this.stream.isComplete() && this.status.nextDataChunk > this.stream.getLatestFragmentIndex()) {
         if (this.debug) console.log("MEDIA: Final chunk has been added to audio buffer");
         
         this.closeStream();
@@ -314,6 +312,7 @@ MediaController.prototype.trimBuffer = function(start, end) {
 // #EXTERNAL
 MediaController.prototype.startPlayback = function() {
     if (![this.validStates.READY_TO_PLAY, this.validStates.INITIALIZING].includes(this.status.state) && this.audioController.paused) {
+        console.log("MEDIA: Resuming playback");
         this.audioController.play();
         return false;
     }
@@ -335,7 +334,7 @@ MediaController.prototype.pausePlayback = function() {
 
 MediaController.prototype.bufferFully = function() {
 
-    if (!this.status.streamComplete && this.status.nextDataChunk > this.status.nextAvailableDataChunk) {
+    if (!this.stream.isComplete() && this.status.nextDataChunk > this.stream.getLatestFragmentIndex()) {
         if (this.debug) console.warn(`MEDIA: Next data chunk isn't available yet, waiting (${this.CHUNK_NOT_AVAILABLE_RETRY})`);
         
         this.changeState(this.validStates.WAITING_FOR_DATA);
@@ -409,7 +408,7 @@ MediaController.prototype.closeStream = function() {
 
 MediaController.prototype.bufferAhead = function() {
 
-    if (!this.status.streamComplete && this.status.nextDataChunk > this.status.nextAvailableDataChunk) {
+    if (!this.stream.isComplete() && this.status.nextDataChunk > this.stream.getLatestFragmentIndex()) {
         if (this.debug) console.warn(`MEDIA: Next data chunk isn't available yet, waiting (${this.CHUNK_NOT_AVAILABLE_RETRY})`);
         
         this.changeState(this.validStates.WAITING_FOR_DATA);
@@ -453,14 +452,6 @@ MediaController.prototype.getStatus = function() {
     return this.status;
 };
 
-MediaController.prototype.onStreamComplete = function() {
-    this.status.streamComplete = true;
-};
-
-MediaController.prototype.onNextAvailableFragment = function(index) {
-    this.status.nextAvailableDataChunk = index || -1;
-};
-
 // OBJECT CONSTRUCTOR
 MediaController.prototype.StatusTracker = function(initialState) {
 
@@ -473,8 +464,6 @@ MediaController.prototype.StatusTracker = function(initialState) {
     this.bufferedUntil = 0.0; //Seconds
     this.nextDataChunk = 0;
     this.playWhenDataAvailable = false;
-    this.nextAvailableDataChunk = -1; // This will be updated by the streamcontroller
-    this.streamComplete = false; // This will be updated by the streamcontroller
     this.bufferingComplete = false;
     this.bufferStrategy = Symbol("UNDECIDED");
     this.lastPlaytimeUpdate = 0.0; //performance.now() timestamp

@@ -16,8 +16,8 @@ view.onNewStreamLoaded = function() {
 
     document.querySelector("#streamBuffer").value = 0;
     document.querySelector("#streamContentSize").innerText = `${mediaController.getStream().getStreamObject().SIZE} bytes || ${readableBytes(mediaController.getStream().getStreamObject().SIZE)}`;
-    document.querySelector("#duration").innerText = mediaController.getStream().getStreamObject().DURATION + " seconds";
-    document.querySelector("#currentTime").innerText = "0";
+    document.querySelector("#duration").innerText = `${mediaController.getStream().getStreamObject().DURATION} seconds | ${getReadableTime(mediaController.getStream().getStreamObject().DURATION)}`;
+    document.querySelector("#currentTime").innerText = "0 | 0";
     document.querySelector("#streamBytesPerSecond").innerText = Math.round(mediaController.getStream().getStreamObject().BYTES_PER_SECOND);
 
     document.querySelector("#title").innerText = mediaController.getStream().getStreamObject().ID;
@@ -27,7 +27,7 @@ view.onMediaBufferUpdate = function() {
 
     document.querySelector("#mediaBuffer").value = mediaController.status.bufferedBytes;
     document.querySelector("#secondsBuffered").innerText = Math.round(mediaController.status.bufferedDuration);
-    document.querySelector("#bytesBuffered").innerText = Math.round(mediaController.status.bufferedBytes) + " bytes";
+    document.querySelector("#bytesBuffered").innerText = `${Math.round(mediaController.status.bufferedBytes)} || ${readableBytes(mediaController.status.bufferedBytes)}`;
     document.querySelector("#secondsBufferedUntil").innerText = `${Math.round(mediaController.status.bufferedUntil)} || ${getReadableTime(mediaController.status.bufferedUntil)}`;
     document.querySelector("#mediaChunks").innerText = `${mediaController.status.nextDataChunk}`;
 };
@@ -37,13 +37,13 @@ view.onMediaBufferReset = function() {
     document.querySelector("#mediaChunks").innerText = "0";
     document.querySelector("#mediaBuffer").value = 0;
     document.querySelector("#secondsBuffered").innerText = "0";
-    document.querySelector("#bytesBuffered").innerText = "0";
+    document.querySelector("#bytesBuffered").innerText = "0 || 0";
     document.querySelector("#secondsBufferedUntil").innerText = "0";
 
 };
 
 view.onPlaybackTimeChanged = function() {
-    document.getElementById("currentTime").innerText = Math.round(mediaController.audioController.currentTime);
+    document.getElementById("currentTime").innerText = `${Math.round(mediaController.audioController.currentTime)} | ${getReadableTime(mediaController.audioController.currentTime)}`;
 };
 
 view.onMediaControllerInit = function() {

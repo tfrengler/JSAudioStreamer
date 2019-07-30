@@ -48,8 +48,8 @@ const init = function() { // eslint-disable-line no-unused-vars
     setupInterfaceEvents();
     view.onMediaControllerInit();
 
-    mediaController.getAudioFacade().addEventListener("timeupdate", ()=> test(mediaController.getAudioFacade().currentTime));
-    mediaController.getAudioFacade().addEventListener("ended", test2);
+    // mediaController.getAudioFacade().addEventListener("timeupdate", ()=> test(mediaController.getAudioFacade().currentTime));
+    // mediaController.getAudioFacade().addEventListener("ended", test2);
 
     console.log("Init done, ready to rock!");
 };
@@ -105,7 +105,7 @@ const readableBytes = function(bytes) { // eslint-disable-line no-unused-vars
 const getReadableTime = function(time) {
     time = Math.round(time);
     const minutes = (time / 60 > 0 ? parseInt(time / 60) : 0);
-    const seconds = (time > 60 ? time % 60 : time);
+    const seconds = (time >= 60 ? time % 60 : time);
     return `${minutes > 9 ? minutes : "0" + minutes}:${seconds > 9 ? seconds : "0" + seconds}`;
 };
 
