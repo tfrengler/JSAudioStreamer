@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>StreamReader</title>
+    <meta content="text/html; charset=utf-8" http-equiv="Content-Type" />
+    <meta name="author" content="Thomas Frengler" />
+
+    <script type="text/javascript" src="Interface.js"></script>
+    <script type="text/javascript" src="StreamController.js"></script>
+    <script type="text/javascript" src="MediaController.js"></script>
+    <script type="text/javascript" src="AudioObject.js"></script>
+    <script type="text/javascript" src="init.js"></script>
+
+    <script>
+        window.onload = function() {
+            console.log("Initializing...");
+            init();
+        };
+    </script>
+
+    <style>
+        #project, #compatibilityCheck {
+            display: none;
+        }
+    </style>
+</head>
+
+    <body>
+
+        <section id="compatibilityCheck" >
+            Compatibility Check:
+            <ul>
+                <li>HTMLAudioElement: <span id="compatHTMLAudioElement"></span></li>
+                <li>MediaSource: <span id="compatMediaSource"></span></li>
+                <li>SourceBuffer: <span id="compatSourceBuffer"></span></li>
+                <li>SourceBuffer audio support: <span id="compatSourceBufferAudio"></span></li>
+            </ul>
+
+            <p>Sorry, your browser does not appear to have what it takes to run this :(</p>
+        </section>
+        
+        <section id="project">
+
+            <section id="controls" >
+                <p>
+                    <span><button id="play" >PLAY/RESUME</button></span>
+                    <span> | </span>
+                    <span><button id="pause" >PAUSE</button></span>
+                </p>
+
+                <span><u><b>PLAYLIST:</b></u></span>
+                <ul id="playlist">
+                    <li><button id="Devin" class="audioTrack">Devin Townsend Project - The Mighty Masturbator</button></li>
+                    <li><button id="The Police" class="audioTrack">The Police - Roxanne</button></li>
+                    <li><button id="The Who" class="audioTrack">The Who - You Better You Bet</button></li>
+                </ul>
+            </section>
+
+            <section id="trackData" >
+
+                <p><u><b>TRACK DATA:</b></u></p>
+                <ul>
+
+                    <li>Duration: <b><span id="duration">Unknown</span></li></b></li>
+                    <li>Time: <b><span id="currentTime">Unknown</span></li></b>
+                    <li>Title: <b><span id="title">Unknown</span></li></b>
+                    
+                </ul>
+            </section>
+
+            <section id="internalStream" >
+                <p><b><u>REMOTE STREAM:</u></b></p>
+                
+                <span>AUDIO OBJECT BUFFER: </span>
+                <span><progress id="streamBuffer" value="0" max="100" ></progress> <span id="streamBufferPercentage">0%</span></span>
+                <ul>
+                    <li>State: <b><span id="streamState">Unknown</span></b></li>
+                    <li>Estimated bytes per second: <b><span id="streamBytesPerSecond">0</span></b></li>
+                    <li>Downloaded: <b><span id="streamBytesBuffered">0</span></b></li>
+                    <li>Fragments: <b><span id="streamDataChunks">0</span></b></li>
+                    <li>Content size: <b><span id="streamContentSize">0</span></b></li>
+                </ul>
+            </section>
+
+            <section id="browserMediaBuffer" >
+                <p><b><u>MEDIA/AUDIO BUFFER:</u></b></p>
+                
+                <span>BUFFER: </span>
+                <span>
+                    <meter id="mediaBuffer" min="0" value="0" max="0" ></meter>
+                    <span id="bytesBuffered">0</span>
+                </span>
+
+                <ul>
+                    <li>State: <b><span id="mediaState" >Unknown</span></b></li>
+                    <li>Seconds buffered: <b><span id="secondsBuffered">0</span></b></li>
+                    <li>Buffered until: <b><span id="secondsBufferedUntil">0</span></b></li>
+                    <li>At data chunk: <b><span id="mediaChunks">0</span></b></li>
+                    <li>Buffer strategy: <b><span id="mediaBufferStrategy">Unknown</span></b></li>
+                    <li>Mime type: <b><span id="mediaBufferMimetype" >Unknown</span></b></li>
+                    <li>Buffer max size: <b><span id="mediaBufferSize" >0 bytes</span></b></li>
+                </ul>
+            </section>
+
+        </section>
+
+    </body>
+</html>
