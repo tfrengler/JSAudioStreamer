@@ -7,7 +7,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
 
         <style>
-            section li:hover {
+            .AudioTrack:hover {
                 cursor: pointer;
                 background-color: aquamarine;
             }
@@ -16,10 +16,19 @@
                 background-color: cornflowerblue;
                 color: white;
             }
+
+            fieldset {
+                display: inline-block;
+                vertical-align: top;
+            }
         </style>
+
+
         
-        <script>
+        <script type="module">
             "use strict";
+
+            import {JSUtils} from "./Utils.js";
 
             // REPLAY GAIN
             /*
@@ -53,6 +62,11 @@
                 https://developer.mozilla.org/en-US/docs/Web/API/Media_Source_Extensions_API/Transcoding_assets_for_MSE
             */
 
+            /* BYTES PER SECOND
+                (bitrate * duration) / 8 = size_of_payload
+                bitrate / 8 = bytes_per_second
+            */
+
             var UI_PlayCursor;
             var UI_BufferedUntil;
             var UI_BufferTail;
@@ -67,112 +81,17 @@
             var UI_MediaSourceState;
             var UI_DatastreamState;
             var UI_SourceBufferLimit;
-
-            const Player = new Audio();
-            Player.autoplay = false;
-            Player.preload = "metadata";
-
-            var Source;
-            var BufferSource;
-            var StreamReader;
-            var BytesRead = 0;
-            var BytesExpected = 0;
-            var PlayCursorLastUpdated = 0;
-            var UpdatingBuffer = false;
-            var LastTail = 0;
-            var StreamClosed = false;
-            var BufferError = false;
-            var ResumeWhenPlayable = false;
-            var DesiredBufferHead = 120;
-            var BufferAheadTriggerTreshold = 30;
-            var UnreachableSourcesLimit = 3;
-            var UnreachableSources = 0;
-            var CurrentlyPlayingTrack;
-            var StalledInitialRecoveryTimeout;
-            var StalledRetryInterval = 3000;
-            var StalledRetryMaxTimes = 3;
-            var StalledRecoverAttempts = 0;
-            var StalledInitialRecoveryAttempt;
-            var Stalled;
-
-            const CHROME_SOURCEBUFFER_LIMIT = 12582912;
-            const FIREFOX_SOURCEBUFFER_LIMIT = 15728640;
-            const EDGE_SOURCEBUFFER_LIMIT = 12582912;
-
-            Player.addEventListener("loadedmetadata", ()=> Log(`Metadata loaded (${BytesRead} bytes)`));
-            Player.addEventListener("waiting", ()=> Log("Playback stopped - lack of data from source. This may be temporary (latency, seeking)", "WARNING"));
-            Player.addEventListener("stalled", ()=> {
-                Log("Streaming data from media source has stalled", "ERROR");
-                Stalled = true;
-                StalledInitialRecoveryAttempt = setTimeout(recoverFromStall, 10000);
-            });
-
-            Player.addEventListener("ended", ()=> {
-                Log(`Playback ended, releasing data source and removing source-element (${Player.currentSrc})`);
-                
-                URL.revokeObjectURL(Player.currentSrc);
-                Player.children[0].src = "";
-                Player.removeChild(Player.children[0]);
-
-                let playingElement;
-                let nextTrack = getNextTrack();
-
-                if (playingElement = document.querySelector(".playing"))
-                    playingElement.classList.remove("playing");
-
-                if (nextTrack)
-                    prepareAndLoadMedia(nextTrack.dataset["src"], nextTrack, true);
-            });
-
-            Player.addEventListener("canplay", ()=> {
-                Log("Enough audio frames to start playback");
-                
-                if (Stalled && StalledInitialRecoveryAttempt > 0) {
-                    clearTimeout(StalledInitialRecoveryAttempt);
-                    StalledInitialRecoveryAttempt = 0;
-                };
-                Stalled = false;
-
-                if (ResumeWhenPlayable) Player.play().then(()=> {
-                    Log("Playback auto-started");
-                    CurrentlyPlayingTrack.classList.add("playing");
-                });
-            });
-
-            Player.addEventListener("error", ()=> {
-                if (Player.error.name === "QuotaExceededError")
-                    Log("SourceBuffer overflowed at " + BytesRead + " bytes", "ERROR");
-
-                Log(Player.error, "ERROR");
-                // Perhaps consider a way to ensure that the 2 minutes of data we buffer ahead doesn't overflow the buffer? Unlikely, but still
-            });
-
-            Player.addEventListener("durationchange", ()=> {
-                if (Player.duration === Infinity) return;
-                Log("Duration known");
-                UI_Duration.innerText = Math.round(Player.duration) + " seconds | " + getReadableTime(Player.duration);
-            });
-
-            Player.addEventListener("timeupdate", ()=> {
-                if ((performance.now() - PlayCursorLastUpdated) < 900)
-                    return;
-
-                UI_PlayCursor.innerText = getReadableTime(Player.currentTime);
-                PlayCursorLastUpdated = performance.now();
-
-                // if ((Player.duration - Player.currentTime || 999) <= 5 && !PreparingNextTrack)
-                // Prepare next song, and preload data
-
-                if (UpdatingBuffer || StreamClosed) return;
-                if (Player.buffered.end(0) - Player.currentTime < 30) {
-                    Log(`Less than ${BufferAheadTriggerTreshold} seconds of audio data ahead of play cursor, buffering...`);
-                    bufferAhead();
-                }
+            var MasterAudioTrackIndex;
+            
+            const AudioTrackIndexes = Object.seal({
+                ALBUMS: {},
+                ARTISTS: {},
+                GENRES: {}
             });
 
             const recoverFromStall = function() {
                 if (UpdatingBuffer || !Stalled || StalledRecoverAttempts >= StalledRetryMaxTimes) return;
-                Log(`Attempted to recover from stall, retrying ${StalledRetryMaxTimes} times in total with ${StalledRetryInterval} seconds between attempts`, "WARNING");
+                JSUtils.Log(`Attempted to recover from stall, retrying ${StalledRetryMaxTimes} times in total with ${StalledRetryInterval} seconds between attempts`, "WARNING");
 
                 StalledRecoverAttempts++;
                 bufferAhead();
@@ -184,7 +103,7 @@
 
                 StreamReader.read().then(({done, value})=> {
                     if (done) {
-                        Log("Finished reading stream, closing");
+                        JSUtils.Log("Finished reading stream, closing");
 
                         StreamClosed = true;
                         StreamReader.cancel();
@@ -195,7 +114,7 @@
                     }
 
                     BytesRead = BytesRead + value.length;
-                    UI_BytesRead.innerText = getReadableBytes(BytesRead);
+                    UI_BytesRead.innerText = JSUtils.getReadableBytes(BytesRead);
                     UI_DownloadProgress.value = BytesRead;
                     UI_SourceBuffer.value = BytesRead;
 
@@ -208,32 +127,32 @@
 
                 if (Player.buffered.length) {
                     if (Player.buffered.start(0) > LastTail) {
-                        UI_BufferTail.innerText = getReadableTime(Player.buffered.start(0));
+                        UI_BufferTail.innerText = JSUtils.getReadableTime(Player.buffered.start(0));
                         LastTail = Player.buffered.start(0);
-                        Log(`Buffer trimmed (${Player.buffered.start(0) - LastTail} seconds)`);
+                        JSUtils.Log(`Buffer trimmed (${Player.buffered.start(0) - LastTail} seconds)`);
                     }
-                    UI_BufferedUntil.innerText = getReadableTime(Player.buffered.end(0));
+                    UI_BufferedUntil.innerText = JSUtils.getReadableTime(Player.buffered.end(0));
                 }
 
                 if (Player.buffered.length && (Player.buffered.end(0) - Player.currentTime >= DesiredBufferHead)) {
-                    Log(`Enough audio data ahead of play cursor in buffer (${DesiredBufferHead}), waiting`);
+                    JSUtils.Log(`Enough audio data ahead of play cursor in buffer (${DesiredBufferHead}), waiting`);
                     UpdatingBuffer = false;
                     return;
                 }
 
-                // Log("Reading data from stream into buffer...");
+                // JSUtils.Log("Reading data from stream into buffer...");
                 bufferFromStream();
             }
 
             const prepareAndLoadMedia = async function(AudioTrackSourceURL, PlaylistElement, PlayWhenReady) {
-                Log(`Preparing new media for streaming (${AudioTrackSourceURL})`);
+                JSUtils.Log(`Preparing new media for streaming (${AudioTrackSourceURL})`);
 
                 ResumeWhenPlayable = PlayWhenReady;
                 reset();
 
                 let SourceReachable = true;
                 if (UnreachableSources >= UnreachableSourcesLimit) {
-                    Log(UnreachableSourcesLimit + " unreachable audio track sources in a row", "ERROR");
+                    JSUtils.Log(UnreachableSourcesLimit + " unreachable audio track sources in a row", "ERROR");
                     return;
                 }
 
@@ -243,7 +162,7 @@
 
                 if (!SourceReachable) {
                     UnreachableSources++;
-                    Log("Audio track source URL not reachable: " + AudioTrackSourceURL, "ERROR");
+                    JSUtils.Log("Audio track source URL not reachable: " + AudioTrackSourceURL, "ERROR");
                     return;
                 }
 
@@ -256,31 +175,32 @@
                         AudioMimeType = 'audio/mp4;codecs="mp4a.40.2"'; // Codec info must be added
 
                     if (!MediaSource.isTypeSupported(AudioMimeType)) {
-                        Log("Unable to play song, as mimetype is not supported: " + AudioMimeType, "ERROR");
+                        JSUtils.Log("Unable to play song, as mimetype is not supported: " + AudioMimeType, "ERROR");
                         return;
                     }
 
                     BytesExpected = parseInt(response.headers.get("Content-Length"));
-                    UI_BytesExpected.innerText = getReadableBytes(BytesExpected);
+                    UI_BytesExpected.innerText = JSUtils.getReadableBytes(BytesExpected);
                     UI_DownloadProgress.max = BytesExpected;
                     CurrentlyPlayingTrack = PlaylistElement;
 
                     StreamReader = response.body.getReader();
                     UI_DatastreamState.innerText = "OPEN";
                     StreamClosed = false;
-                    Log("Stream opened, reader locked in");
+                    JSUtils.Log("Stream opened, reader locked in");
 
                     let SourceElement = document.createElement("source");
+                    SourceElement.dataset.trackid = AudioTrackSourceURL;
                     SourceElement.src = URL.createObjectURL(Source = new MediaSource());
                     Player.append(SourceElement);
 
-                    Log("Object URL created: " + Player.src);
+                    JSUtils.Log("Object URL created: " + Player.src);
                     Source.addEventListener("sourceclose", ()=> {
-                        Log("MediaSource closed");
+                        // JSUtils.Log("MediaSource closed");
                         UI_MediaSourceState.innerText = "CLOSED";
                     });
                     Source.addEventListener("sourceended", ()=> {
-                        Log("MediaSource ended");
+                        // JSUtils.Log("MediaSource ended");
                         UI_MediaSourceState.innerText = "ENDED";
                     });
 
@@ -289,16 +209,16 @@
                         if (BufferError) return;
 
                         UI_MediaSourceState.innerText = "OPEN";
-                        Log("MediaSource open and ready to receive data");
+                        JSUtils.Log("Media source open and ready to receive data");
 
                         // audio/mp4;codecs="mp4a.40.2"
                         BufferSource = Source.addSourceBuffer(AudioMimeType);
-                        Log("Source buffer created for audio track with mimetype: " + AudioMimeType);
+                        JSUtils.Log("Source buffer created for audio track with mimetype: " + AudioMimeType);
 
                         BufferSource.addEventListener("updateend", bufferAhead);
                         BufferSource.addEventListener("error", ()=> {
                             BufferError = true;
-                            Log("Error updating media buffer source");
+                            JSUtils.Log("Error updating media buffer source");
                         });
 
                         bufferAhead();
@@ -306,7 +226,6 @@
 
                     // Apparently we have to pre-set this because timeupdate triggers on Player.load()
                     // Which makes sense if the media has been played to end already so it's basically resetting currentTime to 0... doh
-                    Log("Instructing player to load media source");
                     UpdatingBuffer = true;
                     Player.load();
                 });
@@ -335,8 +254,51 @@
                 UI_SourceBuffer.value           = 0;
             }
 
+            const loadMusicIndex = function() {
+                fetch("Data/ClientIndex.json", {cache: "no-store", mode: "same-origin", method: "GET", redirect: "error"})
+                .then(response=> response.json())
+                .then(jsonResponse=> {
+                    
+                    MasterAudioTrackIndex = JSUtils.deepFreeze(jsonResponse);
+                    JSUtils.Log(`Index loaded (${Object.keys(MasterAudioTrackIndex).length} tracks)`);
+                    buildMusicIndexes();
+
+                    // UICreateAlbums();
+                    // document.querySelectorAll(".AudioTrack").forEach(element=> element.addEventListener("click", (event)=> prepareAndLoadMedia(event.srcElement.dataset.trackid, event.srcElement, true)));
+                });
+            };
+
+            const buildMusicIndexes = async function() {
+                // Instead of storing the trackID's, maybe store references to the tracks from the master index?
+                for (let trackID in MasterAudioTrackIndex) {
+                    let currentTrack = MasterAudioTrackIndex[trackID];
+
+                    if (AudioTrackIndexes.ALBUMS[currentTrack.Album]) 
+                        AudioTrackIndexes.ALBUMS[currentTrack.Album].push(currentTrack);
+                    else
+                        AudioTrackIndexes.ALBUMS[currentTrack.Album] = [currentTrack];
+
+                    if (AudioTrackIndexes.ARTISTS[currentTrack.TrackArtists]) 
+                        AudioTrackIndexes.ARTISTS[currentTrack.TrackArtists].push(currentTrack);
+                    else
+                        AudioTrackIndexes.ARTISTS[currentTrack.TrackArtists] = [currentTrack];
+
+                    if (AudioTrackIndexes.GENRES[currentTrack.Genres]) 
+                        AudioTrackIndexes.GENRES[currentTrack.Genres].push(currentTrack);
+                    else
+                        AudioTrackIndexes.GENRES[currentTrack.Genres] = [currentTrack];
+                }
+
+                Object.freeze(AudioTrackIndexes.GENRES);
+                Object.freeze(AudioTrackIndexes.ALBUMS);
+                Object.freeze(AudioTrackIndexes.ARTISTS);
+                Object.freeze(AudioTrackIndexes);
+
+                JSUtils.Log("Audio track indicies built");
+            }
+
             window.onload = ()=> {
-                Log("Setting up...");
+                JSUtils.Log("Setting up...");
 
                 UI_PlayCursor       = document.getElementById("PlayCursor");
                 UI_BufferedUntil    = document.getElementById("BufferedUntil");
@@ -353,7 +315,7 @@
                 UI_DatastreamState  = document.getElementById("DatastreamState");
                 UI_SourceBufferLimit= document.getElementById("SourceBufferLimit");
 
-                UI_SourceBufferLimit.innerText = getReadableBytes(CHROME_SOURCEBUFFER_LIMIT);
+                UI_SourceBufferLimit.innerText = JSUtils.getReadableBytes(CHROME_SOURCEBUFFER_LIMIT);
                 UI_SourceBuffer.max = CHROME_SOURCEBUFFER_LIMIT;
                 UI_SourceBuffer.optimum = CHROME_SOURCEBUFFER_LIMIT * 0.3;
                 UI_SourceBuffer.low = CHROME_SOURCEBUFFER_LIMIT * 0.5;
@@ -363,151 +325,60 @@
                 UI_Pause.addEventListener("click", ()=> Player.pause());
                 UI_Mute.addEventListener("click", ()=> Player.muted = !Player.muted);
 
-                document.querySelectorAll("section li").forEach(element=> element.addEventListener("click", (event)=> prepareAndLoadMedia(event.srcElement.dataset.src, event.srcElement, true)));
-                Log("Ready!");
+                loadMusicIndex();
             }
 
-            // Utils
-            const getReadableBytes = function(bytes) {
-                const i = Math.floor(Math.log(bytes) / Math.log(1024)),
-                sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
-                return (bytes / Math.pow(1024, i)).toFixed(2) * 1 + ' ' + sizes[i];
-            };
+            const UICreateAlbums = function() {
+                let output = `<fieldset class="Album">
+                    <legend data-album="" >ALBUM 1:</legend>
+                    <ol class="AlbumTrackList">
+                        <li class="PlaylistEntry" >
+                            <span data-trackid="XXX" class="AudioTrack">XXX</span>
+                            <input data-trackid="XXX" type="checkbox">
+                        </li>
+                    </ol>
+                </fieldset>`;
 
-            const getReadableTime = function(time) {
-                time = Math.round(time);
-                const minutes = (time / 60 > 0 ? parseInt(time / 60) : 0);
-                const seconds = (time >= 60 ? time % 60 : time);
-                return `${minutes > 9 ? minutes : "0" + minutes}:${seconds > 9 ? seconds : "0" + seconds}`;
-            };
+                let rootElement = document.getElementById("AlbumList");
+                let albums = {};
 
-            const fetchWithTimeout = function(url, timeout, requestOptions=0) {
-                return new Promise( (resolve, reject) => {
+                for (var albumName in albums) {
+                    let fieldSet = document.createElement("fieldset");
+                    fieldSet.classList.add("Album");
+                    
+                    let legend = document.createElement("legend");
+                    legend.dataset.album = albumName;
+                    legend.innerText = albumName;
+                    
+                    let ol = document.createElement("ol");
+                    ol.classList.add("AlbumTrackList");
 
-                    const abortController = new AbortController();
-                    if (typeof requestOptions === typeof {})
-                        requestOptions.signal = abortController.signal;
-                    else
-                        requestOptions = {signal: abortController.signal};
+                    fieldSet.appendChild(legend);
+                    fieldSet.appendChild(ol);
 
-                    let timer = setTimeout(
-                        () => {
-                            abortController.abort();
-                            reject( new Error(`Request timed out (${timeout} ms)`) )
-                        },
-                        timeout
-                    );
+                    albums[albumName].forEach(trackID=> {
+                        let trackData = MasterAudioTrackIndex[trackID];
 
-                    fetch(new Request(url, requestOptions)).then(
-                        response => resolve( response ),
-                        error => reject( error )
-                    ).finally( () => clearTimeout(timer) );
-                })
-            };
+                        let li = document.createElement("li");
+                        li.classList.add("PlaylistEntry");
 
-            const waitForEvent = function(emitter, eventName, timeout=0) {
-                return new Promise((resolve, reject) => {
+                        let span = document.createElement("span");
+                        span.classList.add("AudioTrack");
+                        span.dataset.trackid = trackID;
+                        span.innerText = trackData.Title;
 
-                    let listener = function(data) {
-                        clearTimeout(timer);
-                        emitter.removeEventListener(eventName, listener);
-                        resolve(data);
-                    }
+                        let checkbox = document.createElement("input");
+                        checkbox.type = "checkbox";
+                        checkbox.dataset.trackid = trackID;
 
-                    emitter.addEventListener(eventName, listener);
-                    if (timeout < 100) return;
-
-                    let timer = setTimeout(() => {
-                        emitter.removeEventListener(eventName, listener);
-                        reject(new Error("Timeout waiting for event: " + eventName));
-                    }, timeout);
-                });
-            };
-
-            const Log = function(message, type)
-            {
-                const LogMessage = document.createElement("div");
-
-                if (type && type == "WARNING") {
-                    LogMessage.style.backgroundColor = "orange";
-                    LogMessage.style.color = "white";
-                }
-                else if (type && type == "ERROR") {
-                    LogMessage.style.backgroundColor = "red";
-                    LogMessage.style.color = "white";
-                }
-
-                const now = new Date(Date.now());
-                const hours = now.getHours() < 10 ? "0" + now.getHours() : now.getHours();
-                const minutes = now.getMinutes() < 10 ? "0" + now.getMinutes() : now.getMinutes();
-                const seconds = now.getSeconds() < 10 ? "0" + now.getSeconds() : now.getSeconds();
-
-                LogMessage.innerHTML = `[${hours}:${minutes}:${seconds}:${now.getMilliseconds()}]:` + (message || "No log message? This is bad cap'n");
-
-                if (LogOutput.children.length >= 20)
-                    LogOutput.removeChild(LogOutput.children[0]);
-
-                LogOutput.appendChild(LogMessage);
-            }
-
-            /* Testing
-                var SourceBufferLimitTest = Object.seal({
-                    Limit: 0,
-                    MediaSourceTMP: new MediaSource(),
-                    SourceBufferTMP: null,
-                    ArrayBufferTMP: null,
-                    AppendSlices: 1 * 1024 * 1024,
-                    SliceStart: 0,
-                    SliceEnd: 1 * 1024 * 1024,
-                    AudioObjectTMP: new Audio(),
-                    Error: false
-                });
-
-                const findSouceBufferLimit = function() {
-                    SourceBufferLimitTest.AudioObjectTMP.preload = "none";
-                    SourceBufferLimitTest.AudioObjectTMP.autoplay = false;
-                    SourceBufferLimitTest.AudioObjectTMP.addEventListener("error", ()=> {
-                        console.error(SourceBufferLimitTest.AudioObjectTMP.error);
-                        URL.revokeObjectURL(SourceBufferLimitTest.AudioObjectTMP.src);
+                        li.appendChild(checkbox);
+                        li.appendChild(span);
+                        ol.appendChild(li);
                     });
 
-                    fetch("limit_test.m4a", {cache: "no-store", mode: "same-origin", method: "GET", redirect: "error"}).then(response=> {
-                        SourceBufferLimitTest.AudioObjectTMP.src = URL.createObjectURL(SourceBufferLimitTest.MediaSourceTMP);
-
-                        // "sourceopen"-event will trigger once an audio context has loaded the mediasource
-                        SourceBufferLimitTest.MediaSourceTMP.addEventListener("sourceopen", ()=> {
-                            if (SourceBufferLimitTest.Error) return;
-
-                            SourceBufferLimitTest.SourceBufferTMP = SourceBufferLimitTest.MediaSourceTMP.addSourceBuffer('audio/mp4;codecs="mp4a.40.2"');
-                            SourceBufferLimitTest.SourceBufferTMP.addEventListener("error", ()=> SourceBufferLimitTest.Error = true);
-                            
-                            SourceBufferLimitTest.SourceBufferTMP.addEventListener("updateend", ()=> {
-                                if (SourceBufferLimitTest.Error) return;
-
-                                try {
-                                    SourceBufferLimitTest.SourceBufferTMP.appendBuffer(SourceBufferLimitTest.ArrayBufferTMP.slice(SourceBufferLimitTest.SliceStart, SourceBufferLimitTest.SliceEnd));
-                                }
-                                catch(error) {
-                                    SourceBufferLimitTest.Limit = SourceBufferLimitTest.SliceStart;
-                                    console.warn("SourceBuffer limit is: " + SourceBufferLimitTest.Limit);
-                                    URL.revokeObjectURL(SourceBufferLimitTest.AudioObjectTMP.src);
-                                }
-
-                                SourceBufferLimitTest.SliceStart += SourceBufferLimitTest.AppendSlices;
-                                SourceBufferLimitTest.SliceEnd += SourceBufferLimitTest.AppendSlices;
-                            });
-                        });
-
-                        return response.arrayBuffer();
-                    })
-                    .then(arrayBuffer=> {
-                        SourceBufferLimitTest.ArrayBufferTMP = arrayBuffer;
-                        SourceBufferLimitTest.SourceBufferTMP.appendBuffer(SourceBufferLimitTest.ArrayBufferTMP.slice(SourceBufferLimitTest.SliceStart, SourceBufferLimitTest.SliceEnd));
-                        SourceBufferLimitTest.SliceStart += SourceBufferLimitTest.AppendSlices;
-                        SourceBufferLimitTest.SliceEnd += SourceBufferLimitTest.AppendSlices;
-                    });
-                };
-            */
+                    rootElement.appendChild(fieldSet);
+                }
+            };
         </script>
 
     </head>
@@ -516,7 +387,8 @@
         <button id="Play">PLAY</button>
         <button id="Pause">PAUSE</button>
         <button id="Mute">MUTE</button>
-        <!-- <button id="Load">Load</button> -->
+        <span>|</span>
+        <span id="PlayerState" ></span>
 
         <ul>
             <li>Play cursor: <span id="PlayCursor">00:00</span></li>
@@ -532,51 +404,28 @@
         </ul>
 
         <hr/>
-        <h2>PLAYLIST:</h2>
+        <h2>MUSIC:</h2>
 
-        <section>
-            <ol id="Playlist" >
-                <li data-src="Ghost/Fly.mp3">Ghost/Fly</li>
-                <li data-src="Ghost/Heart Baby.mp3">Ghost/Heart Baby</li>
-                <li data-src="Ghost/Feather.mp3">Ghost/Feather</li>
-                <li data-src="Ghost/Kawai.mp3">Ghost/Kawai</li>
-                <li data-src="Ghost/Ghost.mp3">Ghost/Ghost</li>
-                <li data-src="Ghost/Blackberry.mp3">Ghost/Blackberry</li>
-                <li data-src="Ghost/Monsoon.mp3">Ghost/Monsoon</li>
-                <li data-src="Ghost/Dark Matters.mp3">Ghost/Dark Matters</li>
-                <li data-src="Ghost/Texada.mp3">Ghost/Texada</li>
-                <li data-src="Ghost/Seams.mp3">Ghost/Seams</li>
-                <li data-src="Ghost/Infinite Ocean.mp3">Ghost/Infinite Ocean</li>
-                <li data-src="Ghost/As You Were.mp3">Ghost/As You Were</li>
+        <section id="AlbumList"></section>
+            <fieldset class="Album">
+                <legend data-album="" >ALBUM 1: </legend>
+                <a href="#" class="ToggleAlbum" >EXPAND</a>
 
-                <!-- <li data-src="Terria/Olives.mp3">Terria/Olives</li>
-                <li data-src="Terria/Mountain.mp3">Terria/Mountain</li>
-                <li data-src="Terria/Earth Day.mp3">Terria/Earth Day</li>
-                <li data-src="Terria/Deep Peace.mp3">Terria/Deep Peace</li>
-                <li data-src="Terria/Canada.mp3">Terria/Canada</li>
-                <li data-src="Terria/Down and Under.mp3">Terria/Down and Under</li>
-                <li data-src="Terria/The Fluke.mp3">Terria/The Fluke</li>
-                <li data-src="Terria/Nobodys Here.mp3">Terria/Nobody's Here</li>
-                <li data-src="Terria/Tiny Tears.mp3">Terria/Tiny Tears</li>
-                <li data-src="Terria/Stagnant & Humble.mp3">Terria/Stagnant & Humble</li>
-                <li data-src="Terria/Universal.mp3">Terria/Universal</li> -->
-
-                <li data-src="Ki/A Monday.mp3">Ki/A Monday</li>
-                <li data-src="Ki/Coast.mp3">Ki/Coast</li>
-                <li data-src="Ki/Disruptr.mp3">Ki/Disruptr</li>
-                <li data-src="Ki/Gato.mp3">Ki/Gato</li>
-                <li data-src="Ki/Terminal.mp3">Ki/Terminal</li>
-                <li data-src="Ki/Heaven Send.mp3">Ki/Heaven Send</li>
-                <li data-src="Ki/Aint Never Gonna Win.mp3">Ki/Ain't Never Gonna Win</li>
-                <li data-src="Ki/Winter.mp3">Ki/Winter</li>
-                <li data-src="Ki/Train Fire.mp3">Ki/Train Fire</li>
-                <li data-src="Ki/Lady Helen.mp3">Ki/Lady Helen</li>
-                <li data-src="Ki/Ki.mp3">Ki/Ki</li>
-                <li data-src="Ki/Quiet Riot.mp3">Ki/Quiet Riot</li>
-                <li data-src="Ki/Demon League.mp3">Ki/Demon League</li>
-            </ol>
-        </section>
-
+                <ol class="AlbumTrackList" style="display: block;" >
+                    <li class="PlaylistEntry" >
+                        <span data-trackid="XXX" class="AudioTrack">Song1</span>
+                        <input data-trackid="XXX" type="checkbox">
+                    </li>
+                    <li class="PlaylistEntry" >
+                        <span data-trackid="XXX" class="AudioTrack">Song2</span>
+                        <input data-trackid="XXX" type="checkbox">
+                    </li>
+                    <li class="PlaylistEntry" >
+                        <span data-trackid="XXX" class="AudioTrack">Song3</span>
+                        <input data-trackid="XXX" type="checkbox">
+                    </li>
+                </ol>
+            </fieldset>
         <hr/>
         <section id="LogOutput"></section>
     </body>
