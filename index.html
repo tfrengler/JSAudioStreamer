@@ -21,15 +21,30 @@
                 display: inline-block;
                 vertical-align: top;
             }
+
+            th {
+                text-align: left;
+            }
+
+            table {
+                display: inline-table;
+                border-collapse: separate;
+            }
+
+            table:first-of-type {
+                border-right: 0.1rem solid grey;
+                margin-right: 1rem;
+                padding-right: 1rem;
+            }
+
+            /* tr {
+                border-bottom: 0.1rem solid grey;
+            } */
         </style>
 
-
+        <script type="module" src="main.js" ></script>
         
         <script type="module">
-            "use strict";
-
-            import {JSUtils} from "./Utils.js";
-
             // REPLAY GAIN
             /*
                 // Create a MediaElementAudioSourceNode
@@ -66,267 +81,6 @@
                 (bitrate * duration) / 8 = size_of_payload
                 bitrate / 8 = bytes_per_second
             */
-
-            var UI_PlayCursor;
-            var UI_BufferedUntil;
-            var UI_BufferTail;
-            var UI_BytesRead;
-            var UI_BytesExpected;
-            var UI_Duration;
-            var UI_Play;
-            var UI_Pause;
-            var UI_Mute;
-            var UI_DownloadProgress;
-            var UI_SourceBuffer;
-            var UI_MediaSourceState;
-            var UI_DatastreamState;
-            var UI_SourceBufferLimit;
-            var MasterAudioTrackIndex;
-            
-            const AudioTrackIndexes = Object.seal({
-                ALBUMS: {},
-                ARTISTS: {},
-                GENRES: {}
-            });
-
-            const recoverFromStall = function() {
-                if (UpdatingBuffer || !Stalled || StalledRecoverAttempts >= StalledRetryMaxTimes) return;
-                JSUtils.Log(`Attempted to recover from stall, retrying ${StalledRetryMaxTimes} times in total with ${StalledRetryInterval} seconds between attempts`, "WARNING");
-
-                StalledRecoverAttempts++;
-                bufferAhead();
-                setTimeout(recoverFromStall, StalledRetryInterval);
-            };
-            
-            const bufferFromStream = function() {
-                if (BufferError) return;
-
-                StreamReader.read().then(({done, value})=> {
-                    if (done) {
-                        JSUtils.Log("Finished reading stream, closing");
-
-                        StreamClosed = true;
-                        StreamReader.cancel();
-                        UI_DatastreamState.innerText = "CLOSED";
-                        if (Source.readyState == "open") Source.endOfStream();
-
-                        return;
-                    }
-
-                    BytesRead = BytesRead + value.length;
-                    UI_BytesRead.innerText = JSUtils.getReadableBytes(BytesRead);
-                    UI_DownloadProgress.value = BytesRead;
-                    UI_SourceBuffer.value = BytesRead;
-
-                    BufferSource.appendBuffer(value);
-                })
-            };
-
-            const bufferAhead = function() {
-                UpdatingBuffer = true;
-
-                if (Player.buffered.length) {
-                    if (Player.buffered.start(0) > LastTail) {
-                        UI_BufferTail.innerText = JSUtils.getReadableTime(Player.buffered.start(0));
-                        LastTail = Player.buffered.start(0);
-                        JSUtils.Log(`Buffer trimmed (${Player.buffered.start(0) - LastTail} seconds)`);
-                    }
-                    UI_BufferedUntil.innerText = JSUtils.getReadableTime(Player.buffered.end(0));
-                }
-
-                if (Player.buffered.length && (Player.buffered.end(0) - Player.currentTime >= DesiredBufferHead)) {
-                    JSUtils.Log(`Enough audio data ahead of play cursor in buffer (${DesiredBufferHead}), waiting`);
-                    UpdatingBuffer = false;
-                    return;
-                }
-
-                // JSUtils.Log("Reading data from stream into buffer...");
-                bufferFromStream();
-            }
-
-            const prepareAndLoadMedia = async function(AudioTrackSourceURL, PlaylistElement, PlayWhenReady) {
-                JSUtils.Log(`Preparing new media for streaming (${AudioTrackSourceURL})`);
-
-                ResumeWhenPlayable = PlayWhenReady;
-                reset();
-
-                let SourceReachable = true;
-                if (UnreachableSources >= UnreachableSourcesLimit) {
-                    JSUtils.Log(UnreachableSourcesLimit + " unreachable audio track sources in a row", "ERROR");
-                    return;
-                }
-
-                // Fetch won't work on local files when running this directly
-                if (location.toString().indexOf("file:///") == -1)
-                    SourceReachable = await fetchWithTimeout(AudioTrackSourceURL, 3000, {method: "HEAD", mode: "no-cors"}).then(response=> response.status == "200");
-
-                if (!SourceReachable) {
-                    UnreachableSources++;
-                    JSUtils.Log("Audio track source URL not reachable: " + AudioTrackSourceURL, "ERROR");
-                    return;
-                }
-
-                UnreachableSources = 0;
-
-                fetch(AudioTrackSourceURL, {cache: "no-store", mode: "same-origin", method: "GET", redirect: "error"}).then(response=> {
-
-                    let AudioMimeType = response.headers.get("Content-Type");
-                    if (AudioMimeType === "audio/x-m4a" || AudioMimeType === "audio/m4a")
-                        AudioMimeType = 'audio/mp4;codecs="mp4a.40.2"'; // Codec info must be added
-
-                    if (!MediaSource.isTypeSupported(AudioMimeType)) {
-                        JSUtils.Log("Unable to play song, as mimetype is not supported: " + AudioMimeType, "ERROR");
-                        return;
-                    }
-
-                    BytesExpected = parseInt(response.headers.get("Content-Length"));
-                    UI_BytesExpected.innerText = JSUtils.getReadableBytes(BytesExpected);
-                    UI_DownloadProgress.max = BytesExpected;
-                    CurrentlyPlayingTrack = PlaylistElement;
-
-                    StreamReader = response.body.getReader();
-                    UI_DatastreamState.innerText = "OPEN";
-                    StreamClosed = false;
-                    JSUtils.Log("Stream opened, reader locked in");
-
-                    let SourceElement = document.createElement("source");
-                    SourceElement.dataset.trackid = AudioTrackSourceURL;
-                    SourceElement.src = URL.createObjectURL(Source = new MediaSource());
-                    Player.append(SourceElement);
-
-                    JSUtils.Log("Object URL created: " + Player.src);
-                    Source.addEventListener("sourceclose", ()=> {
-                        // JSUtils.Log("MediaSource closed");
-                        UI_MediaSourceState.innerText = "CLOSED";
-                    });
-                    Source.addEventListener("sourceended", ()=> {
-                        // JSUtils.Log("MediaSource ended");
-                        UI_MediaSourceState.innerText = "ENDED";
-                    });
-
-                    // "sourceopen"-event will trigger once an audio context has loaded the mediasource
-                    Source.addEventListener("sourceopen", ()=> {
-                        if (BufferError) return;
-
-                        UI_MediaSourceState.innerText = "OPEN";
-                        JSUtils.Log("Media source open and ready to receive data");
-
-                        // audio/mp4;codecs="mp4a.40.2"
-                        BufferSource = Source.addSourceBuffer(AudioMimeType);
-                        JSUtils.Log("Source buffer created for audio track with mimetype: " + AudioMimeType);
-
-                        BufferSource.addEventListener("updateend", bufferAhead);
-                        BufferSource.addEventListener("error", ()=> {
-                            BufferError = true;
-                            JSUtils.Log("Error updating media buffer source");
-                        });
-
-                        bufferAhead();
-                    });
-
-                    // Apparently we have to pre-set this because timeupdate triggers on Player.load()
-                    // Which makes sense if the media has been played to end already so it's basically resetting currentTime to 0... doh
-                    UpdatingBuffer = true;
-                    Player.load();
-                });
-            }
-
-            const getNextTrack = function() {
-                if (CurrentlyPlayingTrack.nextElementSibling && CurrentlyPlayingTrack.nextElementSibling.dataset["src"])
-                    return CurrentlyPlayingTrack.nextElementSibling || null;
-
-                return null;
-            }
-
-            const reset = function() {
-                Player.pause();
-                Player.muted                    = false;
-                BytesRead                       = 0;
-
-                UI_PlayCursor.innerText         = "00:00";
-                UI_BufferedUntil.innerText      = "00:00";
-                UI_BufferTail.innerText         = "00:00";
-                UI_BytesRead.innerText          = "0";
-                UI_BytesExpected.innerText      = "0";
-                UI_Duration.innerText           = "0 | 0";
-                UI_DownloadProgress.max         = 0;
-                UI_DownloadProgress.value       = 0;
-                UI_SourceBuffer.value           = 0;
-            }
-
-            const loadMusicIndex = function() {
-                fetch("Data/ClientIndex.json", {cache: "no-store", mode: "same-origin", method: "GET", redirect: "error"})
-                .then(response=> response.json())
-                .then(jsonResponse=> {
-                    
-                    MasterAudioTrackIndex = JSUtils.deepFreeze(jsonResponse);
-                    JSUtils.Log(`Index loaded (${Object.keys(MasterAudioTrackIndex).length} tracks)`);
-                    buildMusicIndexes();
-
-                    // UICreateAlbums();
-                    // document.querySelectorAll(".AudioTrack").forEach(element=> element.addEventListener("click", (event)=> prepareAndLoadMedia(event.srcElement.dataset.trackid, event.srcElement, true)));
-                });
-            };
-
-            const buildMusicIndexes = async function() {
-                // Instead of storing the trackID's, maybe store references to the tracks from the master index?
-                for (let trackID in MasterAudioTrackIndex) {
-                    let currentTrack = MasterAudioTrackIndex[trackID];
-
-                    if (AudioTrackIndexes.ALBUMS[currentTrack.Album]) 
-                        AudioTrackIndexes.ALBUMS[currentTrack.Album].push(currentTrack);
-                    else
-                        AudioTrackIndexes.ALBUMS[currentTrack.Album] = [currentTrack];
-
-                    if (AudioTrackIndexes.ARTISTS[currentTrack.TrackArtists]) 
-                        AudioTrackIndexes.ARTISTS[currentTrack.TrackArtists].push(currentTrack);
-                    else
-                        AudioTrackIndexes.ARTISTS[currentTrack.TrackArtists] = [currentTrack];
-
-                    if (AudioTrackIndexes.GENRES[currentTrack.Genres]) 
-                        AudioTrackIndexes.GENRES[currentTrack.Genres].push(currentTrack);
-                    else
-                        AudioTrackIndexes.GENRES[currentTrack.Genres] = [currentTrack];
-                }
-
-                Object.freeze(AudioTrackIndexes.GENRES);
-                Object.freeze(AudioTrackIndexes.ALBUMS);
-                Object.freeze(AudioTrackIndexes.ARTISTS);
-                Object.freeze(AudioTrackIndexes);
-
-                JSUtils.Log("Audio track indicies built");
-            }
-
-            window.onload = ()=> {
-                JSUtils.Log("Setting up...");
-
-                UI_PlayCursor       = document.getElementById("PlayCursor");
-                UI_BufferedUntil    = document.getElementById("BufferedUntil");
-                UI_BufferTail       = document.getElementById("BufferTail");
-                UI_BytesRead        = document.getElementById("BytesRead");
-                UI_BytesExpected    = document.getElementById("BytesExpected");
-                UI_Duration         = document.getElementById("Duration");
-                UI_Play             = document.getElementById("Play");
-                UI_Pause            = document.getElementById("Pause");
-                UI_Mute             = document.getElementById("Mute");
-                UI_DownloadProgress = document.getElementById("DownloadProgress");
-                UI_SourceBuffer     = document.getElementById("SourceBuffer");
-                UI_MediaSourceState = document.getElementById("MediaSourceState");
-                UI_DatastreamState  = document.getElementById("DatastreamState");
-                UI_SourceBufferLimit= document.getElementById("SourceBufferLimit");
-
-                UI_SourceBufferLimit.innerText = JSUtils.getReadableBytes(CHROME_SOURCEBUFFER_LIMIT);
-                UI_SourceBuffer.max = CHROME_SOURCEBUFFER_LIMIT;
-                UI_SourceBuffer.optimum = CHROME_SOURCEBUFFER_LIMIT * 0.3;
-                UI_SourceBuffer.low = CHROME_SOURCEBUFFER_LIMIT * 0.5;
-                UI_SourceBuffer.high = CHROME_SOURCEBUFFER_LIMIT * 0.8;
-
-                UI_Play.addEventListener("click", ()=> Player.play());
-                UI_Pause.addEventListener("click", ()=> Player.pause());
-                UI_Mute.addEventListener("click", ()=> Player.muted = !Player.muted);
-
-                loadMusicIndex();
-            }
 
             const UICreateAlbums = function() {
                 let output = `<fieldset class="Album">
@@ -384,24 +138,115 @@
     </head>
 
     <body>
-        <button id="Play">PLAY</button>
-        <button id="Pause">PAUSE</button>
-        <button id="Mute">MUTE</button>
-        <span>|</span>
-        <span id="PlayerState" ></span>
+        <button id="UI_Previous">PREVIOUS</button>
+        <span>&nbsp;|&nbsp;</span>
+        <button id="UI_Play">PLAY</button>
+        <button id="UI_Pause">PAUSE</button>
+        <button id="UI_Mute">MUTE</button>
+        <span>&nbsp;|&nbsp;</span>
+        <button id="UI_Next">PREVIOUS</button>
 
-        <ul>
-            <li>Play cursor: <span id="PlayCursor">00:00</span></li>
-            <li>Buffered until: <span id="BufferedUntil">00:00</span></li>
-            <li>Buffered from: <span id="BufferTail">00:00</span></li>
-            <li>Buffer: <meter id="SourceBuffer" high="0" low="0" max="0" value="0"></meter> <span id="SourceBufferLimit">0</span></li>
-            <li>Bytes read: <progress id="DownloadProgress" max="0" value="0"></progress> <span id="BytesRead">0</span></li>
-            <li>Bytes expected: <span id="BytesExpected">0</span></li>
-            <li>Duration: <span id="Duration">0 | 0</span></li>
-            <li>MediaSource state: <span id="MediaSourceState">N/A</span></li>
-            <li>Datastream state: <span id="DatastreamState">N/A</span></li>
-            <li>Error: <span id="Error">N/A</span></li>
-        </ul>
+        <p>
+            <span id="UI_Volume" >100%</span>
+            <span>|</span>
+            <input id="UI_Volume_Slider" type="range" min="0.1" max="1.0" step="0.1" value="1.0" />
+            <span>|</span>
+            <span id="UI_Player_State" >N/A</span> <!--- playing, muted, paused -->
+        </p>
+
+        <table>
+            <tbody>
+                <tr>
+                    <th>Play cursor: </th>
+                    <td id="UI_PlayCursor">00:00</td>
+                </tr>
+                <tr>
+                    <th>Duration: </th>
+                    <td id="UI_Duration">0 | 0</td>
+                </tr>
+                <tr>
+                    <th>Buffered until: </th>
+                    <td id="UI_Buffered_Until">00:00</td>
+                </tr>
+                <tr>
+                    <th>Buffered from: </th>
+                    <td id="UI_Buffer_Tail">00:00</td>
+                </tr>
+                <tr>
+                    <th>Buffer: </th>
+                    <td><meter id="UI_Audio_Buffer" high="0" low="0" max="0" value="0"></meter> <span id="UI_Audio_Buffer_Limit">0</span></td>
+                </tr>
+                <tr>
+                    <th>Bytes read: </th>
+                    <td><progress id="UI_Datastream_Progress" max="0" value="0"></progress> <span id="UI_Datastream_BytesRead">0</span></td>
+                </tr>
+                <tr>
+                    <th>Bytes expected: </th>
+                    <td id="UI_Datastream_BytesExpected">0</td>
+                </tr>
+                <tr>
+                    <th>AudioObject state: </th>
+                    <td id="UI_AudioObject_State">N/A</td>
+                </tr>
+                <tr>
+                    <th>Datastream state: </th>
+                    <td id="UI_Datastream_State">N/A</td>
+                </tr>
+                <tr>
+                    <th>Error: </th>
+                    <td id="UI_Error">N/A</td>
+                </tr>
+            </tbody>
+        <table>
+
+        <table>
+            <tbody>
+                <tr>
+                    <th>TrackID</th>
+                    <td id="UI_TrackID">N/A</td>
+                </tr>
+                <tr>
+                    <th>Title</th>
+                    <td id="UI_Title">N/A</td>
+                </tr>
+                <tr>
+                    <th>Album</th>
+                    <td id="UI_Album">N/A</td>
+                </tr>
+                <!-- <tr>
+                    <th>AlbumArtists</th>
+                    <td>N/A</td>
+                </tr> -->
+                <tr>
+                    <th>TrackArtists</th>
+                    <td id="UI_TrackArtists">N/A</td>
+                </tr>
+                <tr>
+                    <th>Year</th>
+                    <td id="UI_Year">N/A</td>
+                </tr>
+                <tr>
+                    <th>Genres</th>
+                    <td id="UI_Genres">N/A</td>
+                </tr>
+                <tr>
+                    <th>Duration</th>
+                    <td id="UI_Duration">N/A</td>
+                </tr>
+                <tr>
+                    <th>Mimetype</th>
+                    <td id="UI_Mimetype">N/A</td>
+                </tr>
+                <tr>
+                    <th>Size</th>
+                    <td id="UI_Size">N/A</td>
+                </tr>
+                <tr>
+                    <th>ReplayGain</th>
+                    <td id="UI_ReplayGain">N/A</td>
+                </tr>
+            </tbody>
+        </table>
 
         <hr/>
         <h2>MUSIC:</h2>
