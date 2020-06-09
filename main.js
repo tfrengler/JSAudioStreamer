@@ -1,22 +1,22 @@
 "use strict";
 
 // const backendEntryPoint = "CFCs/AjaxProxy.cfc";
-const main = Object.create(null);
 
 import { JSUtils } from "./Utils.js";
 import * as EventScope from "./EventManager.js";
 import { MediaController } from "./MediaController.js";
 import { ServiceLocator } from "./ServiceLocator.js";
-import { UIController } from "./UI_Controller.js";
+import { UI_Controller } from "./UI_Controller.js";
+import { PlayList } from "./Playlist.js";
 
-let Services = new ServiceLocator();
+const Services = new ServiceLocator();
 
-let Events = Object.create(null);
+const Events = Object.create(null);
 Events.manager = new EventScope.EventManager();
 Events.types = EventScope.EventTypes;
 Services.provide("events", Events);
 
-let Indexes = {
+const Indexes = {
 	MasterAudioTrackIndex: {},
 	AudioTrackIndexes: {
 		ALBUMS: {},
@@ -27,10 +27,14 @@ let Indexes = {
 };
 Services.provide("indexes", Indexes);
 
-main.player = new MediaController(Services);
-Services.provide("player", main.player);
+const Playlist = new PlayList(Services);
+Services.provide("playlist", Playlist);
 
-main.uiController = new UIController(Services);
+const Player = new MediaController(Services);
+Services.provide("player", Player);
+
+const UIController = new UI_Controller(Services);
+Services.lock();
 
 const loadMusicIndex = function() {
 	fetch("Data/ClientIndex.json", {cache: "no-store", mode: "same-origin", method: "GET", redirect: "error"})
@@ -54,12 +58,13 @@ const loadMusicIndex = function() {
 const buildMusicIndexes = function() {
 	// Instead of storing the trackID's, maybe store references to the tracks from the master index?
 	for (let trackID in Indexes.MasterAudioTrackIndex) {
-		let currentTrack = Indexes.MasterAudioTrackIndex[trackID];
+        let currentTrack = Indexes.MasterAudioTrackIndex[trackID];
+        let albumHashCode = JSUtils.hash(currentTrack.Album); // Can't add artist because tracks may have different artists on the same album
 
-		if (Indexes.AudioTrackIndexes.ALBUMS[currentTrack.Album]) 
-			Indexes.AudioTrackIndexes.ALBUMS[currentTrack.Album].push(currentTrack);
+		if (Indexes.AudioTrackIndexes.ALBUMS[albumHashCode]) 
+			Indexes.AudioTrackIndexes.ALBUMS[albumHashCode].push(currentTrack);
 		else
-			Indexes.AudioTrackIndexes.ALBUMS[currentTrack.Album] = [currentTrack];
+			Indexes.AudioTrackIndexes.ALBUMS[albumHashCode] = [currentTrack];
 
 		if (Indexes.AudioTrackIndexes.ARTISTS[currentTrack.TrackArtists]) 
 			Indexes.AudioTrackIndexes.ARTISTS[currentTrack.TrackArtists].push(currentTrack);
@@ -82,14 +87,20 @@ const buildMusicIndexes = function() {
 
 // Debug mode, expose the stuff to the user so we can access stuff via the console
 if (window.location.href.indexOf("?DevMode=1") > -1) {
-	window.main = main;
-	window.main.indexes = Indexes;
+	window.main = Object.seal({
+		services: Services,
+		events: Events,
+		indexes: Indexes,
+		playlist: Playlist,
+		player: Player,
+		uiController: UIController
+	})
 }
 
 // Object.freeze(main);
 
 window.onload = () => {
-	main.uiController.init();
+	UIController.init();
 	loadMusicIndex();
 	console.warn("Everything is initialized and ready to rock and roll");
 }

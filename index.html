@@ -7,7 +7,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
 
         <style>
-            .AudioTrack:hover {
+            .AudioTrack:hover, .PlaylistEntry:hover {
                 cursor: pointer;
                 background-color: aquamarine;
             }
@@ -35,6 +35,23 @@
                 border-right: 0.1rem solid grey;
                 margin-right: 1rem;
                 padding-right: 1rem;
+            }
+
+            #Playlist {
+                float: right;
+                z-index: 999;
+                border-style: solid;
+                border-width: 0.1rem;
+                border-color:grey;
+                border-radius: 0.2rem;
+                padding: 0.2rem;
+            }
+
+            .PlaylistEntry {
+                background-color: cornflowerblue;
+                color: white;
+                padding: 0.1rem;
+                margin-bottom: 0.2rem;
             }
 
             /* tr {
@@ -86,7 +103,7 @@
                 let output = `<fieldset class="Album">
                     <legend data-album="" >ALBUM 1:</legend>
                     <ol class="AlbumTrackList">
-                        <li class="PlaylistEntry" >
+                        <li class="AlbumEntry" >
                             <span data-trackid="XXX" class="AudioTrack">XXX</span>
                             <input data-trackid="XXX" type="checkbox">
                         </li>
@@ -138,6 +155,12 @@
     </head>
 
     <body>
+        <section id="Playlist">
+            <div id="PlaylistHeader">PLAYLIST:</div>
+            <hr/>
+            <div id="PlaylistBody" ></div>
+        </section>
+
         <button id="UI_Previous">PREVIOUS</button>
         <span>&nbsp;|&nbsp;</span>
         <button id="UI_Play">PLAY</button>
@@ -162,7 +185,7 @@
                 </tr>
                 <tr>
                     <th>Duration: </th>
-                    <td id="UI_Duration">0 | 0</td>
+                    <td id="UI_Player_Duration">0 | 0</td>
                 </tr>
                 <tr>
                     <th>Buffered until: </th>
@@ -173,8 +196,8 @@
                     <td id="UI_Buffer_Tail">00:00</td>
                 </tr>
                 <tr>
-                    <th>Buffer: </th>
-                    <td><meter id="UI_Audio_Buffer" high="0" low="0" max="0" value="0"></meter> <span id="UI_Audio_Buffer_Limit">0</span></td>
+                    <th>Audio buffer: </th>
+                    <td><meter id="UI_Audio_Buffer" high="0" low="0" max="12582912" value="0"></meter> <span id="UI_Audio_Buffer_Limit">0</span></td>
                 </tr>
                 <tr>
                     <th>Bytes read: </th>
@@ -197,20 +220,20 @@
                     <td id="UI_Error">N/A</td>
                 </tr>
             </tbody>
-        <table>
+        </table>
 
         <table>
             <tbody>
                 <tr>
-                    <th>TrackID</th>
+                    <th>TrackID: </th>
                     <td id="UI_TrackID">N/A</td>
                 </tr>
                 <tr>
-                    <th>Title</th>
+                    <th>Title: </th>
                     <td id="UI_Title">N/A</td>
                 </tr>
                 <tr>
-                    <th>Album</th>
+                    <th>Album: </th>
                     <td id="UI_Album">N/A</td>
                 </tr>
                 <!-- <tr>
@@ -218,31 +241,31 @@
                     <td>N/A</td>
                 </tr> -->
                 <tr>
-                    <th>TrackArtists</th>
+                    <th>TrackArtists: </th>
                     <td id="UI_TrackArtists">N/A</td>
                 </tr>
                 <tr>
-                    <th>Year</th>
+                    <th>Year: </th>
                     <td id="UI_Year">N/A</td>
                 </tr>
                 <tr>
-                    <th>Genres</th>
+                    <th>Genres: </th>
                     <td id="UI_Genres">N/A</td>
                 </tr>
                 <tr>
-                    <th>Duration</th>
+                    <th>Duration: </th>
                     <td id="UI_Duration">N/A</td>
                 </tr>
                 <tr>
-                    <th>Mimetype</th>
+                    <th>Mimetype: </th>
                     <td id="UI_Mimetype">N/A</td>
                 </tr>
                 <tr>
-                    <th>Size</th>
+                    <th>Size: </th>
                     <td id="UI_Size">N/A</td>
                 </tr>
                 <tr>
-                    <th>ReplayGain</th>
+                    <th>ReplayGain: </th>
                     <td id="UI_ReplayGain">N/A</td>
                 </tr>
             </tbody>
@@ -251,26 +274,73 @@
         <hr/>
         <h2>MUSIC:</h2>
 
-        <section id="AlbumList"></section>
+        <section id="AlbumList">
             <fieldset class="Album">
-                <legend data-album="" >ALBUM 1: </legend>
-                <a href="#" class="ToggleAlbum" >EXPAND</a>
+                <legend data-album="" >Devin - Ki: (<span class="AlbumSelectedCount" >0</span>)</legend>
+
+                <a href="javascript:;" class="ToggleAlbum" >HIDE</a>
+                <span>&nbsp;|&nbsp;</span>
+                <a href="javascript:;" class="SelectAllInAlbum" >ALL</a>
+                <span>&nbsp;|&nbsp;</span>
+                <a href="javascript:;" class="DeselectAllInAlbum" >NONE</a>
 
                 <ol class="AlbumTrackList" style="display: block;" >
-                    <li class="PlaylistEntry" >
-                        <span data-trackid="XXX" class="AudioTrack">Song1</span>
-                        <input data-trackid="XXX" type="checkbox">
+                    <li class="AlbumEntry" >
+                        <input data-trackid="589AD74D5E14EC88716B7D90F89C7A93F272DC480EEA8D8BC7010EF26479F072" type="checkbox">
+                        <span data-trackid="589AD74D5E14EC88716B7D90F89C7A93F272DC480EEA8D8BC7010EF26479F072" class="AudioTrack">A Monday</span>
                     </li>
-                    <li class="PlaylistEntry" >
-                        <span data-trackid="XXX" class="AudioTrack">Song2</span>
-                        <input data-trackid="XXX" type="checkbox">
+                    <li class="AlbumEntry" >
+                        <input data-trackid="F45B9A228ECF43A77C3EFBCDDA9C8FC62A35440944CC5B3FB692C6A6C8FB2C00" type="checkbox">
+                        <span data-trackid="F45B9A228ECF43A77C3EFBCDDA9C8FC62A35440944CC5B3FB692C6A6C8FB2C00" class="AudioTrack">Aint Never Gonna Win</span>
                     </li>
-                    <li class="PlaylistEntry" >
-                        <span data-trackid="XXX" class="AudioTrack">Song3</span>
-                        <input data-trackid="XXX" type="checkbox">
+                    <li class="AlbumEntry" >
+                        <input data-trackid="E0A5C0CD65355E75BDC08751F5E81B728C48D90F71E5C8A7448B748C577A8E21" type="checkbox">
+                        <span data-trackid="E0A5C0CD65355E75BDC08751F5E81B728C48D90F71E5C8A7448B748C577A8E21" class="AudioTrack">Coast</span>
+                    </li>
+                    <li class="AlbumEntry" >
+                        <input data-trackid="9766E53DF63D4E25C620C0F587F3EDE0DEBA00773EE6E3C163553995274A0EB0" type="checkbox">
+                        <span data-trackid="9766E53DF63D4E25C620C0F587F3EDE0DEBA00773EE6E3C163553995274A0EB0" class="AudioTrack">Demon League</span>
+                    </li>
+                    <li class="AlbumEntry" >
+                        <input data-trackid="DFE8C1812BA79BC066E9AA4E0887FB3AD47E00AB1E35C1597948272205535FBD" type="checkbox">
+                        <span data-trackid="DFE8C1812BA79BC066E9AA4E0887FB3AD47E00AB1E35C1597948272205535FBD" class="AudioTrack">Disruptr</span>
+                    </li>
+                    <li class="AlbumEntry" >
+                        <input data-trackid="2E9A1046B949E3D0D831C5860C193E210A7BE5CD723666C92BC840DEFB4F97BF" type="checkbox">
+                        <span data-trackid="2E9A1046B949E3D0D831C5860C193E210A7BE5CD723666C92BC840DEFB4F97BF" class="AudioTrack">Gato</span>
+                    </li>
+                    <li class="AlbumEntry" >
+                        <input data-trackid="996C51C8C6D40754508B240D041EFD0C11094C0924D413858475CC57A5A457DE" type="checkbox">
+                        <span data-trackid="996C51C8C6D40754508B240D041EFD0C11094C0924D413858475CC57A5A457DE" class="AudioTrack">Heaven Send</span>
+                    </li>
+                    <li class="AlbumEntry" >
+                        <input data-trackid="AA5D5F240611DE23A4DB9B7119A3083565B44E8EDC12DC6A6EFD4740C4AF1332" type="checkbox">
+                        <span data-trackid="AA5D5F240611DE23A4DB9B7119A3083565B44E8EDC12DC6A6EFD4740C4AF1332" class="AudioTrack">Ki</span>
+                    </li>
+                    <li class="AlbumEntry" >
+                        <input data-trackid="44D5ECC40E357E7C268506636C15C42164B926E39F26FFD6DB278382C127A587" type="checkbox">
+                        <span data-trackid="44D5ECC40E357E7C268506636C15C42164B926E39F26FFD6DB278382C127A587" class="AudioTrack">Lady Helen</span>
+                    </li>
+                    <li class="AlbumEntry" >
+                        <input data-trackid="4A294EA6E567F263449CED90535C56D176F8723A0BD9540F9840D9B20A49C380" type="checkbox">
+                        <span data-trackid="4A294EA6E567F263449CED90535C56D176F8723A0BD9540F9840D9B20A49C380" class="AudioTrack">Quiet Riot</span>
+                    </li>
+                    <li class="AlbumEntry" >
+                        <input data-trackid="3457A56799540A1253CC808793CCA0CC8BF59C3DFE1067817810868D7E99127B" type="checkbox">
+                        <span data-trackid="3457A56799540A1253CC808793CCA0CC8BF59C3DFE1067817810868D7E99127B" class="AudioTrack">Terminal</span>
+                    </li>
+                    <li class="AlbumEntry" >
+                        <input data-trackid="B0931E9BF63171D89B1D986FC9464649D17B76C7B6753834130AEEC686F67294" type="checkbox">
+                        <span data-trackid="B0931E9BF63171D89B1D986FC9464649D17B76C7B6753834130AEEC686F67294" class="AudioTrack">Train Fire</span>
+                    </li>
+                    <li class="AlbumEntry" >
+                        <input data-trackid="FBB6FBC6A02A2106B6D01D528774B59111E7912D0157DA3936CEF96A98C14805" type="checkbox">
+                        <span data-trackid="FBB6FBC6A02A2106B6D01D528774B59111E7912D0157DA3936CEF96A98C14805" class="AudioTrack">Winter</span>
                     </li>
                 </ol>
             </fieldset>
+        </section>
+
         <hr/>
         <section id="LogOutput"></section>
     </body>

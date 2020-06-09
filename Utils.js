@@ -195,6 +195,10 @@ JSUtils.waitForEvent = function(emitter, eventName, timeout=0) {
 
 JSUtils.Log = function(message, type)
 {
+    // In case an error-object is received
+    if (typeof message === typeof {} && message.message)
+        message = message.message;
+
     const LogMessage = document.createElement("div");
 
     if (type && type == "WARNING") {
@@ -213,7 +217,7 @@ JSUtils.Log = function(message, type)
 
     LogMessage.innerHTML = `[${hours}:${minutes}:${seconds}:${now.getMilliseconds()}]: ` + (message || "No log message? This is bad cap'n");
 
-    if (LogOutput.children.length >= 20)
+    if (LogOutput.children.length >= 40)
         LogOutput.removeChild(LogOutput.children[0]);
 
     LogOutput.appendChild(LogMessage);

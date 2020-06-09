@@ -1,4 +1,4 @@
-import {JSUtils} from "./Utils.js";
+import { JSUtils } from "./Utils.js";
 import { AudioObject } from "./AudioObject.js";
 
 /*
@@ -23,6 +23,7 @@ class MediaController {
     constructor(serviceLocator) {
         // Properties
         this.services = serviceLocator || null;
+        this.events = serviceLocator.get("events");
 
         this.audioElement = new Audio();
         this.audioElement.autoplay = false;
@@ -35,18 +36,10 @@ class MediaController {
         this.EDGE_SOURCEBUFFER_LIMIT = 12582912;
 
         this.playCursorLastUpdated = 0;
-        this.resumeWhenPlayable = true;
         this.desiredBufferHead = 120;
         this.bufferAheadTriggerTreshold = 30;
         this.unreachableSourcesLimit = 3;
         this.unreachableSources = 0;
-
-        this.stalledInitialRecoveryTimeout = 0;
-        this.stalledRetryInterval = 3000;
-        this.stalledRetryMaxTimes = 3;
-        this.stalledRecoverAttempts = 0;
-        this.stalledInitialRecoveryAttempt = null;
-        this.stalled = false;
 
         this.preparingNextTrack = false;
         this.currentAudioTrack = null;
@@ -54,19 +47,15 @@ class MediaController {
         this.currentSourceElement = this.audioElement.children[0];
         this.nextSourceElement = this.audioElement.children[1];
 
-        // Object.defineProperties(this, {
-        //     audioPlayer: Immutable,
-        //     desiredBufferHead: Immutable,
-        //     bufferAheadTriggerTreshold: Immutable,
-        //     unreachableSourcesLimit: Immutable,
-        //     StalledRetryInterval: Immutable,
-        //     StalledRetryMaxTimes: Immutable,
-        //     CHROME_SOURCEBUFFER_LIMIT: Immutable,
-        //     FIREFOX_SOURCEBUFFER_LIMIT: Immutable,
-        //     EDGE_SOURCEBUFFER_LIMIT: Immutable,
-        //     sourceElements: Immutable,
-        //     audioObjects: Immutable
-        // });
+        Object.defineProperties(this, {
+            audioElement: Immutable,
+            desiredBufferHead: Immutable,
+            bufferAheadTriggerTreshold: Immutable,
+            unreachableSourcesLimit: Immutable,
+            CHROME_SOURCEBUFFER_LIMIT: Immutable,
+            FIREFOX_SOURCEBUFFER_LIMIT: Immutable,
+            EDGE_SOURCEBUFFER_LIMIT: Immutable
+        });
     
         // Event handlers
         this.audioElement.addEventListener("loadedmetadata", this._onTrackMetadataLoaded.bind(this));
@@ -79,23 +68,7 @@ class MediaController {
         this.audioElement.addEventListener("timeupdate", this._onPlayCursorChange.bind(this));
 
         console.log("MediaController initialized" + `${this.services ? ", with services" : ""}`);
-
-        // TODO(thomas): For testing purposes
-        this.playList = [
-            "589AD74D5E14EC88716B7D90F89C7A93F272DC480EEA8D8BC7010EF26479F072",
-            "F45B9A228ECF43A77C3EFBCDDA9C8FC62A35440944CC5B3FB692C6A6C8FB2C00",
-            "E0A5C0CD65355E75BDC08751F5E81B728C48D90F71E5C8A7448B748C577A8E21",
-            "9766E53DF63D4E25C620C0F587F3EDE0DEBA00773EE6E3C163553995274A0EB0",
-            "DFE8C1812BA79BC066E9AA4E0887FB3AD47E00AB1E35C1597948272205535FBD",
-            "2E9A1046B949E3D0D831C5860C193E210A7BE5CD723666C92BC840DEFB4F97BF",
-            "996C51C8C6D40754508B240D041EFD0C11094C0924D413858475CC57A5A457DE",
-            "AA5D5F240611DE23A4DB9B7119A3083565B44E8EDC12DC6A6EFD4740C4AF1332",
-            "44D5ECC40E357E7C268506636C15C42164B926E39F26FFD6DB278382C127A587",
-            "4A294EA6E567F263449CED90535C56D176F8723A0BD9540F9840D9B20A49C380",
-            "3457A56799540A1253CC808793CCA0CC8BF59C3DFE1067817810868D7E99127B",
-            "B0931E9BF63171D89B1D986FC9464649D17B76C7B6753834130AEEC686F67294",
-            "FBB6FBC6A02A2106B6D01D528774B59111E7912D0157DA3936CEF96A98C14805"
-        ];
+        return Object.seal(this);
     }
 
     // PUBLIC
@@ -104,32 +77,49 @@ class MediaController {
         if (!this.audioElement.paused) return;
 
         this.audioElement.play().then(()=> {
-            JSUtils.Log("Playback started");
+            this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_PLAYING);
+            JSUtils.Log("MediaController: Playback started");
         })
         .catch(error=> this._onError(error));
     }
 
     pause() {
+        this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_PAUSED);
         this.audioElement.pause();
+        JSUtils.Log("MediaController: Playback paused");
     }
 
     mute() {
+        this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_MUTED);
         this.audioElement.muted = !this.audioElement.muted;
+        JSUtils.Log(`MediaController: Volume ${this.audioElement.muted ? "muted" : "un-muted"}`);
     }
 
     setVolume(volume) {
+        this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_VOLUME_CHANGE);
         this.audioElement.volume = volume || 1.0;
     }
 
+    // This is the one called from outside when clicking on a track from the playlist
     loadNextTrack(trackID, load) {
+        this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_LOADING_NEXT_TRACK);
+        JSUtils.Log("MediaController: Loading next track: " + trackID);
+
         const TrackData = this.services.get("indexes").MasterAudioTrackIndex[trackID];
         const BackendData = this.services.get("indexes").BackendIndex[trackID]; // TODO(thomas): Needs to be taken out eventually
 
+        if (!TrackData) {
+            JSUtils.Log("MediaController: TrackData could not be loaded from index: " + trackID, "ERROR");
+            throw new Error("TrackData could not be loaded: " + trackID);
+        }
+
         let nextAudioTrack = new AudioObject(
+            trackID,
             `Data\\Music\\${BackendData.RelativePath}\\${BackendData.FileName}`, // TODO(thomas): Needs to be reworked to a cfm-url
             TrackData.Mimetype,
             TrackData.Size,
-            TrackData.Duration
+            TrackData.Duration,
+            this.events
         );
 
         nextAudioTrack.ready().then(objectURL=> {
@@ -139,8 +129,6 @@ class MediaController {
             this.nextSourceElement.dataset.trackid = trackID;
             this.nextSourceElement.src = objectURL;
             this.nextAudioTrack = nextAudioTrack;
-
-            // setTimeout(()=> nextAudioTrack.bufferUntil(3), 100);
             
             if (load === true) 
                 this._rotateTrack();
@@ -149,13 +137,18 @@ class MediaController {
             nextAudioTrack.dispose();
             this.nextAudioTrack = null;
 
-            console.warn("loadNextTrack errored:");
-            console.error(error);
+            JSUtils.Log("MediaController: nextAudioTrack.ready() threw an error", "ERROR");
+            JSUtils.Log(error);
+
+            this._prepareNextTrack();
         })
     }
 
     // PRIVATE
     _rotateTrack() {
+        JSUtils.Log("MediaController: Rotating tracks");
+
+        // First time through currentTrack will be null
         if (this.currentAudioTrack) this.currentAudioTrack.dispose();
 
         this.currentAudioTrack = this.nextAudioTrack;
@@ -167,39 +160,45 @@ class MediaController {
         this.currentSourceElement = this.nextSourceElement;
         this.nextSourceElement = previousSourceElement;
 
-        // Loads triggers the "timeupdate"-event if currentTime is above 0, because it moves the cursor back to 0 again
+        // Loads triggers the "timeupdate"-event if currentTime is above 0 (if another track has been playing), because it moves the cursor back to 0 again
         this.audioElement.load();
-        // setTimeout(()=> this.currentAudioTrack.bufferUntil(this.desiredBufferHead), 100);
         this.preparingNextTrack = false;
+        
+        this.currentAudioTrack.open().then(()=> {
+            JSUtils.Log(`MediaController: Track data stream is open, buffering ahead (${JSUtils.getReadableTime(this.desiredBufferHead)})`);
+            this.currentAudioTrack.bufferUntil(this.desiredBufferHead);
+        });
+
+        this.events.manager.trigger(
+            this.events.types.MEDIA_CONTROLLER_TRACK_ROTATED,
+            this.services.get("indexes").MasterAudioTrackIndex[this.currentAudioTrack.getID()]
+        );
     }
 
     _prepareNextTrack() {
-        let nextTrackID = this.playList.shift();
+        JSUtils.Log("MediaController: Preparing next track in queue...");
+
+        let nextTrackID = this.services.get("playlist").getNext();
         if (nextTrackID) 
-            this.loadNextTrack(nextTrackID, true);
+            this.loadNextTrack(nextTrackID, false);
         else 
-            JSUtils.Log("Playlist empty");
-        /*
-            - Get next track from... wherever (service?)
-            - Call loadNextTrack with load=false
-        */
+            JSUtils.Log("MediaController: ...but queue is empty!!!");
     }
 
     _onTrackEnded() {
-        JSUtils.Log(`Playback ended`);
+        this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_TRACK_ENDED);
+        JSUtils.Log("MediaController: Playback ended for current track");
         if (this.nextAudioTrack) this._rotateTrack();
     }
 
     _onTrackPlayable() {
-        JSUtils.Log("Enough audio frames to start playback");
-        
-        // if (this.resumeWhenPlayable) {
-        //     JSUtils.Log("Playback resuming");
-        //     this.play()
-        // }
+        this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_TRACK_PLAYABLE);
+        JSUtils.Log("MediaController: Enough audio frames to start playback");
+        this.play();
     }
 
     _onError(error) {
+        this.events.manager.trigger(this.events.types.ERROR, {error_message: error});
         // if (this.audioElement.error.name === "QuotaExceededError")
             // JSUtils.Log("SourceBuffer overflowed", "ERROR");
         
@@ -209,36 +208,45 @@ class MediaController {
 
     _onDurationChange() {
         if (this.audioElement.duration === Infinity) return;
-        JSUtils.Log("Duration known");
+
+        this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_DURATION_CHANGED, {duration: this.audioElement.duration});
+        JSUtils.Log(`MediaController: Duration changed (${this.audioElement.duration})`);
     }
 
     _onPlayCursorChange() {
-        if ((performance.now() - this.playCursorLastUpdated) < 950)
+        if ((performance.now() - this.playCursorLastUpdated) < 900)
             return;
 
         this.playCursorLastUpdated = performance.now();
 
-        if (!this.preparingNextTrack && (this.audioElement.duration - this.audioElement.currentTime || 999) <= 5) {
+        if (!this.preparingNextTrack && (this.audioElement.duration - this.audioElement.currentTime || 9999) <= 5) {
+            JSUtils.Log("MediaController: Current track almost at end...");
             this.preparingNextTrack = true;
             this._prepareNextTrack();
         }
 
-        if (this.currentAudioTrack && this.currentAudioTrack.isBusy()) return;
+        if (this.currentAudioTrack && (this.currentAudioTrack.isComplete() || this.currentAudioTrack.isBusy())) return;
         
-        // if (this.audioElement.buffered.length && this.audioElement.buffered.end(0) - this.audioElement.currentTime < this.bufferAheadTriggerTreshold)
-        //     this.currentAudioTrack.bufferUntil(this.audioElement.buffered.end(0) + this.desiredBufferHead || 9999);
+        if (this.audioElement.buffered.length && this.audioElement.buffered.end(0) - this.audioElement.currentTime < this.bufferAheadTriggerTreshold)
+        {
+            JSUtils.Log("MediaController: Audio buffer below threshold, buffering ahead until " + JSUtils.getReadableTime(this.audioElement.buffered.end(0) + this.desiredBufferHead));
+            this.currentAudioTrack.bufferUntil(this.audioElement.buffered.end(0) + this.desiredBufferHead);
+        }
     }
 
     _onTrackMetadataLoaded() {
-        JSUtils.Log(`Metadata loaded`);
+        this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_METADATA_LOADED);
+        JSUtils.Log("MediaController: Metadata from current track loaded");
     }
 
     _onWaiting() {
-        JSUtils.Log("Playback stopped - lack of data from source. This may be temporary (latency, seeking)", "WARNING")
+        this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_WAITING);
+        JSUtils.Log("MediaController: Playback stopped - lack of data from source. This may be temporary (latency, seeking)", "WARNING");
     }
 
     _onStalled() {
-        JSUtils.Log("Streaming data from media source has stalled", "ERROR");
+        this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_STALLED);
+        JSUtils.Log("MediaController: Streaming data from media source has stalled", "ERROR");
     }
 
 }
