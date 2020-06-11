@@ -28,14 +28,19 @@ class DataStream {
 
     open() {
         return new Promise((resolve, reject)=> {
-            if (this.state !== STATES.INITIAL) reject("DataSource: unable to open data stream because we are beyond the initial state");
+            if (this.state !== STATES.INITIAL) {
+                reject("DataSource: unable to open data stream because we are beyond the initial state");
+                return;
+            }
 
             JSUtils.fetchWithTimeout(this.streamURL, 3000, {method: "HEAD", mode: "no-cors"})
             .then(response=> {
                 if (response.status != "200") {
                     this.state = STATES.ERROR;
                     this.events.manager.trigger(this.events.types.ERROR, {error_message: `DataSource: stream URL not reachable (${this.streamURL}). Response: ${response.status}`});
+                    
                     reject("DataSource: stream URL not reachable: " + this.streamURL);
+                    return;
                 }
 
                 fetch(this.streamURL, {cache: "no-store", mode: "same-origin", method: "GET", redirect: "error"}).then(response=> {
@@ -44,7 +49,9 @@ class DataStream {
                     if (!this.bytesExpected) {
                         this.state = STATES.ERROR;
                         this.events.manager.trigger(this.events.types.ERROR, {error_message: "DataSource: no content-length header in response"});
+                        
                         reject("DataSource: no content-length header in response");
+                        return;
                     }
 
                     this.reader = response.body.getReader();
@@ -56,6 +63,7 @@ class DataStream {
                 .catch(error=> {
                     this.state = STATES.ERROR;
                     this.events.manager.trigger(this.events.types.ERROR, {error_message: "DataStream: error during fetch"});
+                    
                     reject(error);
                 });
             })
@@ -74,8 +82,10 @@ class DataStream {
 
     read() {
         return new Promise((resolve, reject)=> {
-            if (this.state !== STATES.OPEN)
+            if (this.state !== STATES.OPEN) {
                 reject("Stream is closed, not open or in the process of being read");
+                return;
+            }
 
             this.state = STATES.READING;
             this.events.manager.trigger(this.events.types.DATA_STREAM_READING);

@@ -20,7 +20,8 @@ const Indexes = {
 	MasterAudioTrackIndex: {},
 	AudioTrackIndexes: {
 		ALBUMS: {},
-		ARTISTS: {},
+		ALBUM_ARTISTS: {},
+		TRACK_ARTISTS: {},
 		GENRES: {}
 	},
 	BackendIndex: {}
@@ -58,31 +59,38 @@ const loadMusicIndex = function() {
 const buildMusicIndexes = function() {
 	// Instead of storing the trackID's, maybe store references to the tracks from the master index?
 	for (let trackID in Indexes.MasterAudioTrackIndex) {
-        let currentTrack = Indexes.MasterAudioTrackIndex[trackID];
-        let albumHashCode = JSUtils.hash(currentTrack.Album); // Can't add artist because tracks may have different artists on the same album
+		let currentTrack = Indexes.MasterAudioTrackIndex[trackID];
+		
+		let TrackArtists = currentTrack.TrackArtists || "_UNKNOWN_";
+		let AlbumArtists = currentTrack.AlbumArtists || "_UNKNOWN_";
+		let Album = currentTrack.Album || "_UNKNOWN_";
+		let Genres = currentTrack.Genres || "_UNKNOWN_";
 
-		if (Indexes.AudioTrackIndexes.ALBUMS[albumHashCode]) 
-			Indexes.AudioTrackIndexes.ALBUMS[albumHashCode].push(currentTrack);
+		if (Indexes.AudioTrackIndexes.ALBUMS[Album]) 
+			Indexes.AudioTrackIndexes.ALBUMS[Album].push(trackID);
 		else
-			Indexes.AudioTrackIndexes.ALBUMS[albumHashCode] = [currentTrack];
+			Indexes.AudioTrackIndexes.ALBUMS[Album] = [trackID];
 
-		if (Indexes.AudioTrackIndexes.ARTISTS[currentTrack.TrackArtists]) 
-			Indexes.AudioTrackIndexes.ARTISTS[currentTrack.TrackArtists].push(currentTrack);
+		if (Indexes.AudioTrackIndexes.TRACK_ARTISTS[TrackArtists]) 
+			Indexes.AudioTrackIndexes.TRACK_ARTISTS[TrackArtists].push(trackID);
 		else
-			Indexes.AudioTrackIndexes.ARTISTS[currentTrack.TrackArtists] = [currentTrack];
+			Indexes.AudioTrackIndexes.TRACK_ARTISTS[TrackArtists] = [trackID];
 
-		if (Indexes.AudioTrackIndexes.GENRES[currentTrack.Genres || "UNKNOWN"]) 
-			Indexes.AudioTrackIndexes.GENRES[currentTrack.Genres || "UNKNOWN"].push(currentTrack);
+		if (Indexes.AudioTrackIndexes.ALBUM_ARTISTS[AlbumArtists]) 
+			Indexes.AudioTrackIndexes.ALBUM_ARTISTS[AlbumArtists].push(trackID);
 		else
-			Indexes.AudioTrackIndexes.GENRES[currentTrack.Genres || "UNKNOWN"] = [currentTrack];
+			Indexes.AudioTrackIndexes.ALBUM_ARTISTS[AlbumArtists] = [trackID];
+
+		if (Indexes.AudioTrackIndexes.GENRES[Genres]) 
+			Indexes.AudioTrackIndexes.GENRES[Genres].push(trackID);
+		else
+			Indexes.AudioTrackIndexes.GENRES[Genres] = [trackID];
 	}
 
-	Object.freeze(Indexes.AudioTrackIndexes.GENRES);
-	Object.freeze(Indexes.AudioTrackIndexes.ALBUMS);
-	Object.freeze(Indexes.AudioTrackIndexes.ARTISTS);
-	Object.freeze(Indexes.AudioTrackIndexes);
+	JSUtils.deepFreeze(Indexes.AudioTrackIndexes);
 
 	JSUtils.Log("Audio track indicies built");
+	UIController._createAlbumList();
 }
 
 // Debug mode, expose the stuff to the user so we can access stuff via the console

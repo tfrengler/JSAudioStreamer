@@ -1,5 +1,3 @@
-import { JSUtils } from "./Utils.js";
-
 class PlayList {
 
     constructor(serviceLocator) {
@@ -34,7 +32,13 @@ class PlayList {
         let newList = Array.from(this.list);
         this.events.manager.trigger(this.events.types.PLAYLIST_TRACKS_REMOVED, {list: newList, removed: trackIDs});
 
-        return Array.from(this.list);
+        return newList;
+    }
+
+    setCurrent(trackID) {
+        let newCurrentIndex = this.list.indexOf(trackID);
+        if (this.currentIndex > -1)
+            this.currentIndex = newCurrentIndex;
     }
 
     getCurrent() {
