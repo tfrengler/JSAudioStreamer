@@ -14,7 +14,9 @@ class PlayList {
     add(trackIDs) {
         if (!(trackIDs instanceof Array)) return Array.from(this.list);
 
-        trackIDs.forEach(trackID=> this.list.push(trackID));
+        trackIDs.forEach(trackID=> {
+            if (this.list.indexOf(trackID) === -1) this.list.push(trackID);
+        });
         let newList = Array.from(this.list);
         this.events.manager.trigger(this.events.types.PLAYLIST_TRACKS_ADDED, {list: newList, added: trackIDs});
 
@@ -33,6 +35,15 @@ class PlayList {
         this.events.manager.trigger(this.events.types.PLAYLIST_TRACKS_REMOVED, {list: newList, removed: trackIDs});
 
         return newList;
+    }
+
+    clear() {
+        this.list = [];
+        this.currentIndex = 0;
+    }
+
+    count() {
+        return this.list.length;
     }
 
     setCurrent(trackID) {

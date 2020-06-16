@@ -171,7 +171,10 @@ class MediaController {
 
         this.events.manager.trigger(
             this.events.types.MEDIA_CONTROLLER_TRACK_ROTATED,
-            this.services.get("indexes").MasterAudioTrackIndex[this.currentAudioTrack.getID()]
+            {
+                trackID: this.currentAudioTrack.getID(),
+                trackData: this.services.get("indexes").MasterAudioTrackIndex[this.currentAudioTrack.getID()]
+            }
         );
     }
 

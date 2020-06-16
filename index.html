@@ -7,14 +7,28 @@
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
 
         <style>
-            .PlaylistEntry:hover, label:hover {
-                cursor: pointer;
-                background-color: aquamarine;
+            @font-face {
+                font-family: Orbitron;
+                src: url(Data/Fonts/Orbitron-Regular.ttf);
             }
 
-            .playing {
-                background-color: cornflowerblue;
+            @font-face {
+                font-family: Roboto;
+                src: url(Data/Fonts/Roboto-Regular.ttf);
+            }
+
+            #LibraryList, #Playlist {
+                font-family: Roboto;
+            }
+
+            .PlaylistEntry:hover, label:hover {
+                cursor: pointer;
+                background-color: black;
                 color: white;
+            }
+
+            .Playing {
+                background-color: tomato !important;
             }
 
             fieldset {
@@ -40,14 +54,18 @@
             #Playlist {
                 position: fixed;
                 right: 0.5rem;
-                top: 0.5rem;
+                top: 2.5rem;
                 z-index: 999;
                 border-style: solid;
                 border-width: 0.1rem;
                 border-color:grey;
                 border-radius: 0.2rem;
                 padding: 0.2rem;
-                background-color: white;
+                background-color: lightskyblue;
+            }
+
+            #PlaylistBody {
+                overflow-y: scroll;
             }
 
             .PlaylistEntry {
@@ -55,6 +73,8 @@
                 color: white;
                 padding: 0.1rem;
                 margin-bottom: 0.2rem;
+                border-radius: 0.5rem;
+                padding: 0.3rem;
             }
 
             legend {
@@ -71,9 +91,38 @@
                 border-bottom: 0.2rem solid grey;
             }
 
-            /* tr {
+            .Artist {
+                background-color: black;
+                color: white;
+                border-radius: 0.5rem;
+                padding: 0.2rem;
+            }
+
+            .AlbumName {
+                background-color: lightgrey;
+                color: darkslategrey;
+                border-radius: 0.5rem;
+                padding: 0.2rem;
+            }
+
+            .ArtistControls {
                 border-bottom: 0.1rem solid grey;
-            } */
+                margin-bottom: 0.5rem;
+                padding-bottom: 0.5rem;
+            }
+
+            .ArtistCollection {
+                background-color: teal;
+                margin-bottom: 0.5rem;
+            }
+
+            .Album {
+                background-color: aquamarine;
+            }
+
+            #PlaylistHeader {
+                font-size: 1.2rem;
+            }
         </style>
 
         <script type="module" src="main.js" ></script>
@@ -120,9 +169,13 @@
 
     <body>
         <section id="Playlist">
-            <div id="PlaylistHeader">PLAYLIST:</div>
+            <div id="PlaylistHeader">
+                <span>PLAYLIST</span>
+                <span>&nbsp;-&nbsp;<a href="javascript:;" id="ShowHidePlayList">HIDE</a></span>
+                <span>&nbsp;-&nbsp;<a href="javascript:;" id="ClearPlaylist">CLEAR</a></span>
+            </div>
             <hr/>
-            <div id="PlaylistBody" ></div>
+            <div id="PlaylistBody" style="display: block;" ></div>
         </section>
 
         <button id="UI_Previous">PREVIOUS</button>
@@ -131,7 +184,7 @@
         <button id="UI_Pause">PAUSE</button>
         <button id="UI_Mute">MUTE</button>
         <span>&nbsp;|&nbsp;</span>
-        <button id="UI_Next">PREVIOUS</button>
+        <button id="UI_Next">NEXT</button>
 
         <p>
             <span id="UI_Volume" >100%</span>
@@ -237,57 +290,47 @@
 
         <hr/>
         <h2>
-            MUSIC LIBRARY --
+            <span>MUSIC LIBRARY --</span>
             <label for="LibraryShowHide">SHOW/HIDE:</label>
             <input type="checkbox" id="LibraryShowHide" checked />
         </h2>
 
         <section id="LibraryControls">
-            <form name="LibraryControlForm" >
+            <form name="LibraryControlForm" action="javascript:;" method="GET"  >
 
-            <section id="LibraryFilter">
-                <div>
-                    <input name="LibraryFilter" value="ALL" type="radio" id="LibraryFilterByALL" checked />
-                    <label for="LibraryFilterByALL">Show all</label>
-                </div>
-                <div>
-                    <input name="LibraryFilter" value="ARTISTS" type="radio" id="LibraryFilterByARTISTS" />
-                    <label for="LibraryFilterByARTISTS">Show by artists</label>
-                </span>
-                <div>
-                    <input name="LibraryFilter" value="ALBUMS" type="radio" id="LibraryFilterByALBUMS" />
-                    <label for="LibraryFilterByALBUMS">Show by album</label>
-                </div>
-                <div>
-                    <input name="LibraryFilter" value="GENRES" type="radio" id="LibraryFilterByGENRES" />
-                    <label for="LibraryFilterByGENRES">Show by genre</label>
-                </div>
-            </section>
+                <section id="LibrarySearch">
+                    <input type="button" id="ResetLibrary" value="RESET" />
+                    <input type="button" id="SelectAllInLibrary" value="SELECT ALL" />
+                    <br/><br/>
 
-            <section id="LibrarySearch">
-                <div>
-                    <input name="LibrarySearchOption" value="Title" type="radio" id="LibrarySearchOnTitle" checked />
-                    <label for="LibrarySearchOnTitle">Search on title</label>
-                </span>
-                <div>
-                    <input name="LibrarySearchOption" value="Artist" type="radio" id="LibrarySearchOnArtist" />
-                    <label for="LibrarySearchOnArtist">Search on artist</label>
-                </div>
-                <div>
-                    <input name="LibrarySearchOption" value="Album" type="radio" id="LibrarySearchOnAlbum" />
-                    <label for="LibrarySearchOnAlbum">Search on album</label>
-                </div>
-                <div>
-                    <input type="text" id="LibrarySearchText" placeholder="search" />
-                    <input type="button" id="SearchLibrary" value="GO!" disabled />
-                </div>
-            </section>
+                    <div>
+                        <input name="LibrarySearchOption" value="Title" type="checkbox" id="LibrarySearchOnTitle" checked />
+                        <label for="LibrarySearchOnTitle">Search on title</label>
+                    </span>
+                    <div>
+                        <input name="LibrarySearchOption" value="Artist" type="checkbox" id="LibrarySearchOnArtist" />
+                        <label for="LibrarySearchOnArtist">Search on artist</label>
+                    </div>
+                    <div>
+                        <input name="LibrarySearchOption" value="Album" type="checkbox" id="LibrarySearchOnAlbum" />
+                        <label for="LibrarySearchOnAlbum">Search on album</label>
+                    </div>
+                    <div>
+                        <input name="LibrarySearchOption" value="Genre" type="checkbox" id="LibrarySearchOnGenre" />
+                        <label for="LibrarySearchOnGenre">Search on genre</label>
+                    </span>
+                    <div>
+                        <input type="text" id="LibrarySearchText" placeholder="search" />
+                        <input type="button" id="SearchLibrary" value="GO!" disabled />
+                    </div>
+                </section>
 
             </form>
         </section>
+
         <br/>
 
-        <section id="AlbumList"></section>
+        <section id="LibraryList"></section>
 
         <hr/>
 

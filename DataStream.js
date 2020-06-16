@@ -53,7 +53,7 @@ class DataStream {
                         reject("DataSource: no content-length header in response");
                         return;
                     }
-
+                    // TODO(thomas): Rework entire class to use byte-range requests instead of streamreader
                     this.reader = response.body.getReader();
                     this.state = STATES.OPEN;
                     this.events.manager.trigger(this.events.types.DATA_STREAM_OPEN);

@@ -6,25 +6,24 @@ class UI_Controller {
 
         this.services = serviceLocator || null;
         this.elements = Object.create(null);
+        this.librarySearchTextThreshold = 3;
 
         console.log("UI Controller instantiated" + `${this.services ? ", with services" : ""}`);
         return Object.seal(this);
     }
 
     init() {
-
-        // Library filter controls
-        this.elements.UI_LibraryFilterByALL         = document.getElementById("LibraryFilterByALL");
-        this.elements.UI_LibraryFilterByARTISTS     = document.getElementById("LibraryFilterByARTISTS");
-        this.elements.UI_LibraryFilterByALBUMS      = document.getElementById("LibraryFilterByALBUMS");
-        this.elements.UI_LibraryFilterByGENRES      = document.getElementById("LibraryFilterByGENRES");
         
-        // Library search controls
+        // Library
+        this.elements.UI_LibraryList                = document.getElementById("LibraryList");
         this.elements.UI_LibrarySearchText          = document.getElementById("LibrarySearchText");
         this.elements.UI_SearchLibrary              = document.getElementById("SearchLibrary");
         this.elements.UI_LibrarySearchOnTitle       = document.getElementById("LibrarySearchOnTitle");
         this.elements.UI_LibrarySearchOnArtist      = document.getElementById("LibrarySearchOnArtist");
         this.elements.UI_LibrarySearchOnAlbum       = document.getElementById("LibrarySearchOnAlbum");
+        this.elements.UI_LibrarySearchOnGenre       = document.getElementById("LibrarySearchOnGenre");
+        this.elements.UI_ResetLibrary               = document.getElementById("ResetLibrary");
+        this.elements.UI_SelectAllInLibrary         = document.getElementById("SelectAllInLibrary");
         
         // Misc
         this.elements.UI_LibraryControlForm         = document.querySelector("*[name='LibraryControlForm']");
@@ -66,7 +65,16 @@ class UI_Controller {
         this.elements.UI_Size                       = document.getElementById("UI_Size"); // td
         this.elements.UI_ReplayGain                 = document.getElementById("UI_ReplayGain"); // td
 
+        // Playlist
+        this.elements.UI_ShowHidePlaylist           = document.getElementById("ShowHidePlayList");
+        this.elements.UI_ClearPlaylist              = document.getElementById("ClearPlaylist");
+        
+        this.elements.UI_Playlist.style.maxHeight = window.innerHeight + "px";
         this.elements.UI_Audio_Buffer_Limit.innerText = JSUtils.getReadableBytes(this.services.get("player").CHROME_SOURCEBUFFER_LIMIT);
+        this.elements.UI_LibrarySearchOnTitle.value = this.services.get("indexes").FILTER.TITLE;
+        this.elements.UI_LibrarySearchOnArtist.value = this.services.get("indexes").FILTER.ARTIST;
+        this.elements.UI_LibrarySearchOnAlbum.value = this.services.get("indexes").FILTER.ALBUM;
+        this.elements.UI_LibrarySearchOnGenre.value = this.services.get("indexes").FILTER.GENRE;
 
         Object.freeze(this.elements);
         this._initEventHandlers();
@@ -113,11 +121,15 @@ class UI_Controller {
 
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_DURATION_CHANGED, this._onDurationChanged, this);
 
-        events.manager.subscribe(events.types.MEDIA_CONTROLLER_TRACK_ROTATED, function(data){
+        events.manager.subscribe(events.types.MEDIA_CONTROLLER_TRACK_ROTATED, function(eventData){
             this._resetPlayerUI();
-            this.elements.UI_Datastream_BytesExpected.innerText = JSUtils.getReadableBytes(data.Size);
-            this.elements.UI_Datastream_Progress.max = data.Size;
-            this._resetTrackInfoUI(data);
+            this.elements.UI_Datastream_BytesExpected.innerText = JSUtils.getReadableBytes(eventData.trackData.Size);
+            this.elements.UI_Datastream_Progress.max = eventData.trackData.Size;
+            this._resetTrackInfoUI(eventData.trackData);
+
+            let currentlyPlaying = document.querySelector(".Playing");
+            if (currentlyPlaying) currentlyPlaying.classList.remove("Playing");
+            document.querySelector(`.PlaylistEntry[data-trackid='${eventData.trackID}']`).classList.add("Playing");
         }, this);
 
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_WAITING, function(){ this.elements.UI_Player_State.innerText = "WAITING..."}, this);
@@ -143,33 +155,80 @@ class UI_Controller {
             this.elements.UI_Audio_Buffer.value = data.bytes_total;
         }, this);
 
-        // Playlist
-        events.manager.subscribe(events.types.PLAYLIST_TRACKS_ADDED, this._onTracksAddedToPlaylist.bind(this));
-        events.manager.subscribe(events.types.PLAYLIST_TRACKS_REMOVED, this._onTracksRemovedFromPlaylist.bind(this));
-
         // Library controls
         this.elements.UI_LibrarySearchText.addEventListener("input", (event)=> {
-            if (event.srcElement.value.length > 2 && this.elements.UI_SearchLibrary.disabled)
+            if (event.srcElement.value.length >= this.librarySearchTextThreshold && this.elements.UI_SearchLibrary.disabled)
                 this.elements.UI_SearchLibrary.disabled = false;
-            else if (event.srcElement.value.length <= 3)
+            else if (event.srcElement.value.length < this.librarySearchTextThreshold)
                 this.elements.UI_SearchLibrary.disabled = true;
         });
 
-        this.elements.UI_LibraryFilterByALL.addEventListener("click", ()=> console.warn("CLICKED"));
-        this.elements.UI_LibraryFilterByARTISTS.addEventListener("click", ()=> console.warn("CLICKED"));
-        this.elements.UI_LibraryFilterByALBUMS.addEventListener("click", ()=> console.warn("CLICKED"));
-        this.elements.UI_LibraryFilterByGENRES.addEventListener("click", ()=> console.warn("CLICKED"));
-        this.elements.UI_SearchLibrary.addEventListener("click", ()=> console.warn("CLICKED"));
+        this.elements.UI_LibrarySearchText.addEventListener("keypress", (event)=> {
+            if (event.key === "Enter")
+                event.preventDefault();
+
+            if (event.key === "Enter" && event.srcElement.value.length >= this.librarySearchTextThreshold)
+                this._searchLibrary();
+        });
+
+        this.elements.UI_SearchLibrary.addEventListener("click", this._searchLibrary.bind(this));
+        this.elements.UI_LibraryShowHide.addEventListener("change", ()=> {
+            document.querySelectorAll(".ToggleArtist").forEach(element=> element.click());
+        });
+
+        this.elements.UI_ResetLibrary.addEventListener("click", ()=> this._createLibraryList( this.services.get("indexes").getCollection() ));
+        this.elements.UI_SelectAllInLibrary.addEventListener("click", ()=> {
+            document.querySelectorAll(".SelectAllInArtist").forEach(element=> element.click());
+        });
+
+        // Playlist
+        this.elements.UI_ShowHidePlaylist.addEventListener("click", event=> {
+            if (this.elements.UI_Playlist.style.display === "block") {
+                this.elements.UI_Playlist.style.display = "none";
+                event.srcElement.innerText = "SHOW";
+            }
+            else {
+                this.elements.UI_Playlist.style.display = "block";
+                event.srcElement.innerText = "HIDE";
+            }
+        });
+
+        this.elements.UI_ClearPlaylist.addEventListener("click", ()=> {
+            document.querySelectorAll(".DeselectAllInArtist").forEach(element=> element.click());
+            Array.from(this.elements.UI_Playlist.children).forEach(element=> element.remove());
+            
+            let playlist = this.services.get("playlist");
+            
+            if (playlist.count() > 0)
+                playlist.clear();
+        });
+
+        events.manager.subscribe(events.types.PLAYLIST_TRACKS_ADDED, this._onTracksAddedToPlaylist.bind(this));
+        events.manager.subscribe(events.types.PLAYLIST_TRACKS_REMOVED, this._onTracksRemovedFromPlaylist.bind(this));
 
         console.log("UI Controller: event handlers attached");
     }
 
     // UI handlers
     _onToggleAlbum(element) {
-        let AlbumContainer = element.parentElement;
+        let AlbumContainer = element.parentElement.parentElement;
         let AlbumList = AlbumContainer.querySelector("ol.AlbumTrackList");
 
-        if (AlbumList.style.display == "block") {
+        if (AlbumList.style.display === "block") {
+            AlbumList.style.display = "none";
+            element.innerText = "SHOW";
+        }
+        else {
+            AlbumList.style.display = "block";
+            element.innerText = "HIDE";
+        }
+    }
+
+    _onToggleArtist(element) {
+        let AlbumContainer = element.parentElement.parentElement;
+        let AlbumList = AlbumContainer.querySelector("section.AlbumList");
+
+        if (AlbumList.style.display === "block") {
             AlbumList.style.display = "none";
             element.innerText = "SHOW";
         }
@@ -180,8 +239,9 @@ class UI_Controller {
     }
 
     _onSelectAlbum(element, condition) {
-        let AlbumSelectedCount = element.parentElement.querySelector("span.AlbumSelectedCount");
-        let AlbumTrackList = element.parentElement.querySelector("ol.AlbumTrackList");
+        let AlbumSelectedCount = element.parentElement.parentElement.querySelector("span.AlbumSelectedCount");
+        let ArtistSelectedCount = element.parentElement.parentElement.parentElement.parentElement.querySelector("span.ArtistSelectedCount");
+        let AlbumTrackList = element.parentElement.parentElement.querySelector("ol.AlbumTrackList");
         let TrackIDs = [];
 
         let ChildElements = Array.from(AlbumTrackList.children);
@@ -198,10 +258,12 @@ class UI_Controller {
         if (condition) {
             this.services.get("playlist").remove(TrackIDs);
             AlbumSelectedCount.innerText = parseInt(AlbumSelectedCount.innerText) - TrackIDs.length;
+            ArtistSelectedCount.innerText = parseInt(ArtistSelectedCount.innerText) - TrackIDs.length;
         }
         else {
             this.services.get("playlist").add(TrackIDs);
             AlbumSelectedCount.innerText = parseInt(AlbumSelectedCount.innerText) + TrackIDs.length;
+            ArtistSelectedCount.innerText = parseInt(ArtistSelectedCount.innerText) + TrackIDs.length;
         }
     }
 
@@ -209,34 +271,46 @@ class UI_Controller {
         if (!trackID) return;
 
         let AlbumSelectedCount = element.parentElement.parentElement.parentElement.querySelector("span.AlbumSelectedCount");
+        let ArtistSelectedCount = element.parentElement.parentElement.parentElement.parentElement.parentElement.querySelector("span.ArtistSelectedCount");
         let playlist = this.services.get("playlist");
 
         if (selected) {
             playlist.add([trackID]);
             AlbumSelectedCount.innerText = parseInt(AlbumSelectedCount.innerText) + 1;
+            ArtistSelectedCount.innerText = parseInt(ArtistSelectedCount.innerText) + 1;
         }
         else {
             playlist.remove([trackID]);
             AlbumSelectedCount.innerText = parseInt(AlbumSelectedCount.innerText) - 1;
+            ArtistSelectedCount.innerText = parseInt(ArtistSelectedCount.innerText) - 1;
         }
     }
 
     _onTracksAddedToPlaylist(eventData) {
+        let playlistIndex = this.elements.UI_Playlist.children.length;
+
         eventData.added.forEach(trackID=> {
             let playlistEntry = document.createElement("div");
             let trackData = this.services.get("indexes").MasterAudioTrackIndex[trackID];
 
-            playlistEntry.innerText = `${trackData.TrackArtists} - ${trackData.Title.length > 20 ? trackData.Title.slice(0,20) + "..." : trackData.Title} | ${JSUtils.getReadableTime(trackData.Duration)}`;
+            if (!trackData) return;
+
+            playlistEntry.innerHTML = `<span class="PlaylistEntryCounter">${playlistIndex < 10 ? "0" + playlistIndex : playlistIndex}</span> | ${trackData.TrackArtists.length > 30 ? trackData.TrackArtists.slice(0,30) + "..." : trackData.TrackArtists} - ${trackData.Title.length > 30 ? trackData.Title.slice(0,30) + "..." : trackData.Title} | ${JSUtils.getReadableTime(trackData.Duration)}`;
             playlistEntry.title = trackData.Title;
             playlistEntry.dataset.trackid = trackID;
             playlistEntry.classList.add("PlaylistEntry");
 
             playlistEntry.addEventListener("click", (event)=> {
+                let currentlyPlaying = document.querySelector(".Playing");
+                if (currentlyPlaying) currentlyPlaying.classList.remove("Playing");
+
                 this.services.get("playlist").setCurrent(event.srcElement.dataset.trackid);
                 this.services.get("player").loadNextTrack(event.srcElement.dataset.trackid, true);
+                event.srcElement.classList.add("Playing");
             });
 
             this.elements.UI_Playlist.appendChild(playlistEntry);
+            playlistIndex++;
         });
     }
 
@@ -244,6 +318,11 @@ class UI_Controller {
         eventData.removed.forEach(trackID=> {
             let playlistEntry = document.querySelector(`div.PlaylistEntry[data-trackid='${trackID}']`);
             if (playlistEntry) playlistEntry.remove();
+        });
+
+        let counter = 0;
+        document.querySelectorAll(".PlaylistEntryCounter").forEach(counterElement=> {
+            playlistIndex < 10 ? "0" + playlistIndex : playlistIndex
         });
     }
 
@@ -281,59 +360,74 @@ class UI_Controller {
         this.elements.UI_ReplayGain.innerText     = data.ReplayGain || "N/A";
     }
 
-    _getLibraryFormValues() {
-        return Object.freeze({
-            FILTER: this.elements.UI_LibraryControlForm.elements.LibraryFilter.value,
-            SEARCH_OPTION: this.elements.UI_LibraryControlForm.elements.LibrarySearchOption.value,
-            SEARCH_TEXT: this.elements.UI_LibrarySearchText
-        })
-    }
-
     _searchLibrary() {
+        this.elements.UI_LibraryShowHide.checked = true;
+
+        let filter =      this.elements.UI_LibrarySearchOnAlbum.checked ? parseInt(this.elements.UI_LibrarySearchOnAlbum.value)  : 0
+                        | this.elements.UI_LibrarySearchOnTitle.checked ? parseInt(this.elements.UI_LibrarySearchOnTitle.value) : 0
+                        | this.elements.UI_LibrarySearchOnArtist.checked ? parseInt(this.elements.UI_LibrarySearchOnArtist.value) : 0
+                        | this.elements.UI_LibrarySearchOnGenre.checked ? parseInt(this.elements.UI_LibrarySearchOnGenre.value) : 0;
+
+        let searchString = this.elements.UI_LibrarySearchText.value;
+        this._createLibraryList( this.services.get("indexes").getCollection(filter, searchString) );
     }
 
-    _filterLibrary() {
-    }
+    _createLibraryList(manifest) {
+        let start = performance.now();
 
-    _createAlbumList() {
-        let AudioTrackIndexes = this.services.get("indexes").AudioTrackIndexes;
-        let MasterAudioTrackIndex = this.services.get("indexes").MasterAudioTrackIndex;
+        if (!Object.keys(manifest).length) {
+            this.elements.UI_LibraryList.innerHTML = "<h1>Nothing found</h1>";
+            return;
+        }
+        
+        this.elements.UI_SearchLibrary.disabled = true;
+        this.elements.UI_LibraryList.innerHTML = "<h1>Loading...</h1>";
+
         let output = [];
+        let masterTrackIndex = this.services.get("indexes").MasterAudioTrackIndex;
 
-        for(let albumName in AudioTrackIndexes.ALBUMS) {
-            output.push(`<fieldset class="Album">
-                <legend data-albumcode="${JSUtils.hash(albumName)}" >${albumName} - (<span class="AlbumSelectedCount" >0</span>)</legend>
+        for (let albumArtistName in manifest) {
+            output.push(`<fieldset class="ArtistCollection" >
+                <legend class="Artist">${albumArtistName} - (<span class="ArtistSelectedCount" >0</span>)</legend>
 
-                <a href="javascript:;" class="ToggleAlbum" >HIDE</a>
-                <span>&nbsp;|&nbsp;</span>
-                <a href="javascript:;" class="SelectAllInAlbum" >ALL</a>
-                <span>&nbsp;|&nbsp;</span>
-                <a href="javascript:;" class="DeselectAllInAlbum" >NONE</a>
+                <div class="ArtistControls" >
+                    <a href="javascript:;" class="ToggleArtist" >HIDE</a>
+                    <span>&nbsp;|&nbsp;</span>
+                    <a href="javascript:;" class="SelectAllInArtist" >ALL</a>
+                    <span>&nbsp;|&nbsp;</span>
+                    <a href="javascript:;" class="DeselectAllInArtist" >NONE</a>
+                </div>
 
-                <ol class="AlbumTrackList" style="display: block;" >
+                <section class="AlbumList" style="display: block;" >
+                    ${Object.keys(manifest[albumArtistName]).map(albumName=> {
+                        return `<fieldset class="Album">
+                            <legend class="AlbumName">${albumName} - (<span class="AlbumSelectedCount" >0</span>)</legend>
 
-                ${AudioTrackIndexes.ALBUMS[albumName].map(trackID=> {
-                    let TrackData = MasterAudioTrackIndex[trackID];
+                            <div class="AlbumControls">
+                                <a href="javascript:;" class="ToggleAlbum" >HIDE</a>
+                                <span>&nbsp;|&nbsp;</span>
+                                <a href="javascript:;" class="SelectAllInAlbum" >ALL</a>
+                                <span>&nbsp;|&nbsp;</span>
+                                <a href="javascript:;" class="DeselectAllInAlbum" >NONE</a>
+                            </div>
 
-                    // TODO(thomas): Special provision for the tracks without metadata for the moment
-                    let Title;
+                            <ol class="AlbumTrackList" style="display: block;" >
+                                ${manifest[albumArtistName][albumName].map(trackID=> {
+                                    let trackData = masterTrackIndex[trackID];
 
-                    if (TrackData.Title.indexOf("\\") > -1) {
-                        let splitTitle = TrackData.Title.split("\\");
-                        Title = splitTitle[splitTitle.length-1];
-                    }
-                    else Title = TrackData.Title;
-
-                    return `<li class="AlbumEntry" >
-                        <input data-trackid="${trackID}" type="checkbox">
-                        <span class="AudioTrack">${TrackData.TrackArtists} - ${Title}</span>
-                    </li>`}).join("")}
-                
-                </ol>
+                                    return `<li class="AlbumEntry" >
+                                        <input id="${JSUtils.hash(trackID)}" data-trackid="${trackID}" type="checkbox">
+                                        <label for="${JSUtils.hash(trackID)}" class="AudioTrack">${trackData.TrackArtists} - ${trackData.Title}</label>
+                                    </li>`
+                                }).join("")}
+                            </ol>
+                        </fieldset>`
+                    }).join("")}
+                </section>
             </fieldset>`);
         }
         
-        document.querySelector("#AlbumList").innerHTML = output.join("");
+        this.elements.UI_LibraryList.innerHTML = output.join("");
 
         document.querySelectorAll("input[data-trackid]").forEach(
             spanElement=> spanElement.addEventListener("click", (event)=> this._onSelectTrack(event.srcElement, event.srcElement.dataset.trackid, event.srcElement.checked))
@@ -342,6 +436,17 @@ class UI_Controller {
         document.querySelectorAll("a.SelectAllInAlbum").forEach(element=> element.addEventListener("click", (event)=> this._onSelectAlbum(event.srcElement, false)));
         document.querySelectorAll("a.DeselectAllInAlbum").forEach(element=> element.addEventListener("click", (event)=> this._onSelectAlbum(event.srcElement, true)));
         document.querySelectorAll("a.ToggleAlbum").forEach(element=> element.addEventListener("click", (event)=> this._onToggleAlbum(event.srcElement)));
+
+        document.querySelectorAll("a.SelectAllInArtist").forEach(element=> element.addEventListener("click", (event)=> {
+            event.srcElement.parentElement.parentElement.querySelectorAll("a.SelectAllInAlbum").forEach(element=> element.click());
+        }));
+        document.querySelectorAll("a.DeselectAllInArtist").forEach(element=> element.addEventListener("click", (event)=> {
+            event.srcElement.parentElement.parentElement.querySelectorAll("a.DeselectAllInAlbum").forEach(element=> element.click());
+        }));
+        document.querySelectorAll("a.ToggleArtist").forEach(element=> element.addEventListener("click", (event)=> this._onToggleArtist(event.srcElement)));
+
+        if (this.elements.UI_LibrarySearchText.value.length >= this.librarySearchTextThreshold) this.elements.UI_SearchLibrary.disabled = false;
+        console.warn(`_createLibraryList took ${(performance.now() - start).toFixed(2)} ms`);
     }
 }
 
