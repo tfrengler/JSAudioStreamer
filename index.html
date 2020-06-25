@@ -6,124 +6,8 @@
 		<meta content="text/html; charset=utf-8" http-equiv="Content-Type" />
         <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
 
-        <style>
-            @font-face {
-                font-family: Orbitron;
-                src: url(Data/Fonts/Orbitron-Regular.ttf);
-            }
-
-            @font-face {
-                font-family: Roboto;
-                src: url(Data/Fonts/Roboto-Regular.ttf);
-            }
-
-            #LibraryList, #Playlist {
-                font-family: Roboto;
-            }
-
-            .PlaylistEntry:hover, label:hover {
-                cursor: pointer;
-                background-color: black;
-                color: white;
-            }
-
-            .Playing {
-                background-color: tomato !important;
-            }
-
-            fieldset {
-                display: inline-block;
-                vertical-align: top;
-            }
-
-            th {
-                text-align: left;
-            }
-
-            table {
-                display: inline-table;
-                border-collapse: separate;
-            }
-
-            table:first-of-type {
-                border-right: 0.1rem solid grey;
-                margin-right: 1rem;
-                padding-right: 1rem;
-            }
-
-            #Playlist {
-                position: fixed;
-                right: 0.5rem;
-                top: 2.5rem;
-                z-index: 999;
-                border-style: solid;
-                border-width: 0.1rem;
-                border-color:grey;
-                border-radius: 0.2rem;
-                padding: 0.2rem;
-                background-color: lightskyblue;
-            }
-
-            #PlaylistBody {
-                overflow-y: scroll;
-            }
-
-            .PlaylistEntry {
-                background-color: cornflowerblue;
-                color: white;
-                padding: 0.1rem;
-                margin-bottom: 0.2rem;
-                border-radius: 0.5rem;
-                padding: 0.3rem;
-            }
-
-            legend {
-                font-size: 1.5rem;
-            }
-
-            #LibraryFilter, #LibrarySearch {
-                display: inline-block;
-                border-right: 0.2rem solid grey;
-                padding: 0.5rem;
-            }
-
-            #LibraryControls {
-                border-bottom: 0.2rem solid grey;
-            }
-
-            .Artist {
-                background-color: black;
-                color: white;
-                border-radius: 0.5rem;
-                padding: 0.2rem;
-            }
-
-            .AlbumName {
-                background-color: lightgrey;
-                color: darkslategrey;
-                border-radius: 0.5rem;
-                padding: 0.2rem;
-            }
-
-            .ArtistControls {
-                border-bottom: 0.1rem solid grey;
-                margin-bottom: 0.5rem;
-                padding-bottom: 0.5rem;
-            }
-
-            .ArtistCollection {
-                background-color: teal;
-                margin-bottom: 0.5rem;
-            }
-
-            .Album {
-                background-color: aquamarine;
-            }
-
-            #PlaylistHeader {
-                font-size: 1.2rem;
-            }
-        </style>
+        <link rel="stylesheet" href="Data/fontawesome-free-5.13.1-web/css/all.min.css" />
+        <link rel="stylesheet" href="main.css" />
 
         <script type="module" src="main.js" ></script>
 
@@ -170,9 +54,11 @@
     <body>
         <section id="Playlist">
             <div id="PlaylistHeader">
-                <span>PLAYLIST</span>
-                <span>&nbsp;-&nbsp;<a href="javascript:;" id="ShowHidePlayList">HIDE</a></span>
-                <span>&nbsp;-&nbsp;<a href="javascript:;" id="ClearPlaylist">CLEAR</a></span>
+                <i class="fas fa-stream"></i>
+                &nbsp;-&nbsp;
+                <i id="ShowHidePlayList" class="fas fa-eye-slash"></i></span>
+                &nbsp;-&nbsp;
+                <i id="ClearPlaylist" class="fas fa-ban"></i></span>
             </div>
             <hr/>
             <div id="PlaylistBody" style="display: block;" ></div>
@@ -231,10 +117,6 @@
                 <tr>
                     <th>Datastream state: </th>
                     <td id="UI_Datastream_State">N/A</td>
-                </tr>
-                <tr>
-                    <th>Error: </th>
-                    <td id="UI_Error">N/A</td>
                 </tr>
             </tbody>
         </table>

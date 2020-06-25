@@ -102,27 +102,30 @@ export class IndexManager {
                 }
 
                 // Guard against undefined or too short filter strings
-                if (typeof filterString !== typeof "" || typeof filterString === typeof "" && filterString.length < 3) return {};
+                if (typeof filterString !== typeof "" || typeof filterString === typeof "" && filterString.length < 3)
+                    return {};
                 
                 filterString = filterString.toLowerCase();
                 returnData[currentArtistName][currentAlbumName] = [];
                 let currentAlbum = currentArtistCollection[currentAlbumName];
                 
                 this.Indexes.TRACKS_BY_ALBUM[albumName].forEach(albumTrack=> {
+
+                    let trackData = this.MasterAudioTrackIndex[albumTrack];
                     
-                    if ((filter & this.FILTER.TITLE) === this.FILTER.TITLE && this.MasterAudioTrackIndex[albumTrack].Title.toLowerCase().indexOf(filterString) > -1) {
+                    if ((filter & this.FILTER.TITLE) === this.FILTER.TITLE && trackData.Title.toLowerCase().indexOf(filterString) > -1) {
                         currentAlbum.push(albumTrack);
                         return;
                     }
-                    if ((filter & this.FILTER.ALBUM) === this.FILTER.ALBUM && this.MasterAudioTrackIndex[albumTrack].Album.toLowerCase().indexOf(filterString) > -1) {
+                    if ((filter & this.FILTER.ALBUM) === this.FILTER.ALBUM && trackData.Album.toLowerCase().indexOf(filterString) > -1) {
                         currentAlbum.push(albumTrack);
                         return;
                     }
-                    if ((filter & this.FILTER.ARTIST) === this.FILTER.ARTIST && this.MasterAudioTrackIndex[albumTrack].TrackArtists.toLowerCase().indexOf(filterString) > -1) {
+                    if ((filter & this.FILTER.ARTIST) === this.FILTER.ARTIST && trackData.TrackArtists.toLowerCase().indexOf(filterString) > -1) {
                         currentAlbum.push(albumTrack);
                         return;
                     }
-                    if ((filter & this.FILTER.GENRE) === this.FILTER.GENRE && this.MasterAudioTrackIndex[albumTrack].Genres.toLowerCase().indexOf(filterString) > -1) {
+                    if ((filter & this.FILTER.GENRE) === this.FILTER.GENRE && trackData.Genres.toLowerCase().indexOf(filterString) > -1) {
                         currentAlbum.push(albumTrack);
                         return;
                     }

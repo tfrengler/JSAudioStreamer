@@ -14,11 +14,13 @@ class DataStream {
 
         this.events         = events;
 
+        this.chunkSize      = 64 * 1024;
         this.state          = STATES.INITIAL;
-        this.reader         = null;
         this.bytesRead      = 0;
         this.bytesExpected  = bytesExpected;
         this.streamURL      = streamURL;
+        this.readInterval   = 500;
+        this.lastRead       = 0;
 
         if (!streamURL || !bytesExpected) 
             throw new Error("Argument streamURL or bytesExpected is not defined");
@@ -43,29 +45,19 @@ class DataStream {
                     return;
                 }
 
-                fetch(this.streamURL, {cache: "no-store", mode: "same-origin", method: "GET", redirect: "error"}).then(response=> {
-                    
-                    this.bytesExpected = parseInt(response.headers.get("Content-Length"));
-                    if (!this.bytesExpected) {
-                        this.state = STATES.ERROR;
-                        this.events.manager.trigger(this.events.types.ERROR, {error_message: "DataSource: no content-length header in response"});
-                        
-                        reject("DataSource: no content-length header in response");
-                        return;
-                    }
-                    // TODO(thomas): Rework entire class to use byte-range requests instead of streamreader
-                    this.reader = response.body.getReader();
-                    this.state = STATES.OPEN;
-                    this.events.manager.trigger(this.events.types.DATA_STREAM_OPEN);
+                this.bytesExpected = parseInt(response.headers.get("Content-Length"));
 
-                    resolve();
-                })
-                .catch(error=> {
+                if (!this.bytesExpected) {
                     this.state = STATES.ERROR;
-                    this.events.manager.trigger(this.events.types.ERROR, {error_message: "DataStream: error during fetch"});
+                    this.events.manager.trigger(this.events.types.ERROR, {error_message: "DataSource: no content-length header in response"});
                     
-                    reject(error);
-                });
+                    reject("DataSource: no content-length header in response");
+                    return;
+                }
+
+                this.state = STATES.OPEN;
+                this.events.manager.trigger(this.events.types.DATA_STREAM_OPEN);
+                resolve();
             })
             .catch(error=> {
                 this.state = STATES.ERROR;
@@ -80,48 +72,67 @@ class DataStream {
         })
     }
 
-    read() {
+    async read() {
+        let difference = performance.now() - this.lastRead;
+        
+        if (difference < this.readInterval)
+            await JSUtils.wait(this.readInterval - difference);
+
         return new Promise((resolve, reject)=> {
-            if (this.state !== STATES.OPEN) {
-                reject("Stream is closed, not open or in the process of being read");
-                return;
-            }
+
+            if (this.state === STATES.CLOSED || this.isDone())
+                resolve({chunk: null, done: true});
+
+            if (this.state !== STATES.OPEN)
+                reject("Stream is not open or in the process of being read");
 
             this.state = STATES.READING;
             this.events.manager.trigger(this.events.types.DATA_STREAM_READING);
+            this.lastRead = performance.now();
 
-            this.reader.read().then(({done, value})=> {
-                if (done)
-                    this.close();
-                else {
+            let ByteRangeFrom = this.bytesRead;
+            let ByteRangeTo = this.bytesRead + this.chunkSize >= this.bytesExpected ? "" : this.bytesRead + this.chunkSize;
+            let RequestHeaders = new Headers({"Range": `bytes=${ByteRangeFrom}-${ByteRangeTo}`});
+
+            JSUtils.fetchWithTimeout(this.streamURL, 3000, {cache: "no-store", mode: "same-origin", method: "GET", redirect: "error", headers: RequestHeaders})
+            .then(response=> {
+
+                if (response.status !== 206) {
+                    this.state = STATES.ERROR;
+                    this.events.manager.trigger(this.events.types.ERROR, {error_message: `DataSource: stream URL did not return partial content (${this.streamURL}). Response: ${response.status}`});
+                    
+                    reject(`DataSource: stream URL did not return partial content (${this.streamURL}). Response: ${response.status}`);
+                }
+
+                return response.arrayBuffer();
+            })
+            .then(chunk=> {
+
+                this.bytesRead += chunk.byteLength;
+                let done = this.isDone();
+
+                if (!done) {
                     this.state = STATES.OPEN;
                     this.events.manager.trigger(this.events.types.DATA_STREAM_OPEN);
                 }
 
-                if (value) {
-                    this.bytesRead += value.byteLength;
-                    this.events.manager.trigger(
-                        this.events.types.DATA_STREAM_CHUNK_RECEIVED,
-                        {bytes_read: value.byteLength, bytes_total: this.bytesRead}
-                    );
-                }
+                this.events.manager.trigger(
+                    this.events.types.DATA_STREAM_CHUNK_RECEIVED,
+                    {bytes_read: chunk.byteLength, bytes_total: this.bytesRead}
+                );
 
-                resolve({done, value});
+                resolve({chunk, done});
             })
             .catch(error=> {
                 this.state = STATES.ERROR;
-                this.events.manager.trigger(this.events.types.ERROR, {error_message: "DataStream: error reading from stream-reader"});
-                reject(error)
+                this.events.manager.trigger(this.events.types.ERROR, {error_message: "DataStream: error reading from stream"});
+                reject(error);
             });
         })
     }
 
     close() {
         if (this.state === STATES.CLOSED) return;
-
-        if (this.reader) this.reader.cancel();
-        this.reader = null;
-
         this.state = STATES.CLOSED;
         this.events.manager.trigger(this.events.types.DATA_STREAM_CLOSED);
     }

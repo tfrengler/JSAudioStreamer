@@ -197,7 +197,9 @@ JSUtils.Log = function(message, type)
 {
     // In case an error-object is received
     if (typeof message === typeof {} && message.message)
-        message = message.message;
+		message = message.message;
+	else if (typeof message === typeof {})
+		message = "NOTE: Object with no message-attribute received";
 
     const LogMessage = document.createElement("div");
 

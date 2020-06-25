@@ -24,15 +24,13 @@ class AudioObject {
         this.objectURL = null;
         this.mimeType = mimeType;
         this.bufferMark = 0;
-        this.error = null;
 
         if (this.mimeType === "audio/x-m4a" || this.mimeType === "audio/m4a")
             this.mimeType = 'audio/mp4;codecs="mp4a.40.2"'; // Codec info must be added
 
         if (!MediaSource.isTypeSupported(this.mimeType)) {
             this.state = STATES.ERROR;
-            this.error = "Mime-Type not supported: " + this.mimeType;
-            this.events.manager.trigger(this.events.types.ERROR);
+            this.events.manager.trigger(this.events.types.ERROR, {error_message: "Mime-Type not supported: " + this.mimeType});
 
             return Object.seal(this);
         }
@@ -50,13 +48,16 @@ class AudioObject {
             this.bufferSource = this.mediaSource.addSourceBuffer(this.mimeType);
 
             this.bufferSource.addEventListener("updateend", ()=> {
-                this.events.manager.trigger(
-                    this.events.types.AUDIO_OBJECT_BUFFER_UPDATED,
-                    {
-                        buffered_until: this.bufferSource.buffered.end(0),
-                        buffered_from: this.bufferSource.buffered.start(0)
-                    }
-                );
+
+                if (this.bufferSource.buffered.length)
+                    this.events.manager.trigger(
+                        this.events.types.AUDIO_OBJECT_BUFFER_UPDATED,
+                        {
+                            buffered_until: this.bufferSource.buffered.end(0),
+                            buffered_from: this.bufferSource.buffered.start(0)
+                        }
+                    );
+
                 this._buffer();
             }); 
 
@@ -77,9 +78,8 @@ class AudioObject {
             this.events.manager.trigger(this.events.types.AUDIO_OBJECT_READY);
 
         }).catch(error=> {
-            if (error) this.error = error;
             this.state = STATES.ERROR;
-            this.events.manager.trigger(this.events.types.ERROR);
+            this.events.manager.trigger(this.events.types.ERROR, {error_message: error.message});
         });
 
         return Object.seal(this);
@@ -172,11 +172,12 @@ class AudioObject {
     }
 
     // PRIVATE
-    _buffer() {   
-        
+    _buffer() {
+        if (this.state === STATES.ERROR || this.state === STATES.COMPLETED || this.state === STATES.DISPOSED) return;
+
         if (this.bufferSource.buffered.length && this.bufferSource.buffered.end(0) > this.bufferMark) {
             
-            JSUtils.Log("AudioObject: ...buffering ended, desired buffer value reached");
+            JSUtils.Log("AudioObject: ...buffering ended");
             this.bufferMark = 0;
             this.state = STATES.OPEN;
             this.events.manager.trigger(this.events.types.AUDIO_OBJECT_OPEN);
@@ -185,22 +186,21 @@ class AudioObject {
         }
 
         this.dataStream.read().then(result=> {
-            if (!result.done) {
-                this.bufferSource.appendBuffer(result.value);
-                return;
-            }
+
+            if (result.chunk) this.bufferSource.appendBuffer(result.chunk);
+            if (!result.done) return;
 
             JSUtils.Log("AudioObject: data stream read to completion, closing");
             this.state = STATES.COMPLETED;
             this.events.manager.trigger(this.events.types.AUDIO_OBJECT_COMPLETED);
             
             this.dataStream.close();
-            this.mediaSource.endOfStream();
+            setTimeout(()=> this.mediaSource.endOfStream(), 500);
         })
         .catch(error=> {
             this.state = STATES.ERROR;
-            this.error = error || "AudioObject: error while reading from data stream";
             this.events.manager.trigger(this.events.types.ERROR);
+            JSUtils.Log(error || "AudioObject: error while reading from data stream", "ERROR");
         })
     }
 }

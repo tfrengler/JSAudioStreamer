@@ -205,7 +205,8 @@ class MediaController {
         // if (this.audioElement.error.name === "QuotaExceededError")
             // JSUtils.Log("SourceBuffer overflowed", "ERROR");
         
-        JSUtils.Log(error || this.audioElement.error, "ERROR");
+        if (error) JSUtils.Log(error, "ERROR");
+        if (this.audioElement.error) JSUtils.Log(this.audioElement.error, "ERROR");
         // Perhaps consider a way to ensure that the 2 minutes of data we buffer ahead doesn't overflow the buffer? Unlikely, but still
     }
 

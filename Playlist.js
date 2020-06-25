@@ -13,6 +13,7 @@ class PlayList {
 
     add(trackIDs) {
         if (!(trackIDs instanceof Array)) return Array.from(this.list);
+        console.warn("Adding to playlist: " + trackIDs.length);
 
         trackIDs.forEach(trackID=> {
             if (this.list.indexOf(trackID) === -1) this.list.push(trackID);
@@ -25,6 +26,7 @@ class PlayList {
 
     remove(trackIDs) {
         if (!(trackIDs instanceof Array)) return Array.from(this.list);
+        console.warn("Removing from playlist: " + trackIDs.length);
 
         let current = this.getCurrent();
         this.list = this.list.filter(trackID=> trackIDs.indexOf(trackID) === -1);
