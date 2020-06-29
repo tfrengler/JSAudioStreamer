@@ -7,13 +7,15 @@ const EventTypes = Object.freeze({
 	"MEDIA_CONTROLLER_MUTED": Symbol("MEDIA_CONTROLLER_MUTED"),
 	"MEDIA_CONTROLLER_VOLUME_CHANGE": Symbol("MEDIA_CONTROLLER_VOLUME_CHANGE"),
 	"MEDIA_CONTROLLER_DURATION_CHANGED": Symbol("MEDIA_CONTROLLER_DURATION_CHANGED"),
-	"MEDIA_CONTROLLER_TRACK_ROTATED": Symbol("MEDIA_CONTROLLER_TRACK_ROTATED"), // Data = Entry from ClientIndex.json
+	"MEDIA_CONTROLLER_TRACK_ROTATED": Symbol("MEDIA_CONTROLLER_TRACK_ROTATED"), // {Data: Entry from ClientIndex.json}
 	"MEDIA_CONTROLLER_TRACK_ENDED": Symbol("MEDIA_CONTROLLER_TRACK_ENDED"),
-	"MEDIA_CONTROLLER_LOADING_NEXT_TRACK": Symbol("MEDIA_CONTROLLER_LOADING_NEXT_TRACK"),
+    "MEDIA_CONTROLLER_LOADING_NEXT_TRACK": Symbol("MEDIA_CONTROLLER_LOADING_NEXT_TRACK"),
+    "MEDIA_CONTROLLER_PREPARING_NEXT_TRACK": Symbol("MEDIA_CONTROLLER_PREPARING_NEXT_TRACK"),
 	"MEDIA_CONTROLLER_TRACK_PLAYABLE": Symbol("MEDIA_CONTROLLER_TRACK_PLAYABLE"),
 	"MEDIA_CONTROLLER_METADATA_LOADED": Symbol("MEDIA_CONTROLLER_METADATA_LOADED"),
 	"MEDIA_CONTROLLER_WAITING": Symbol("MEDIA_CONTROLLER_WAITING"),
-	"MEDIA_CONTROLLER_STALLED": Symbol("MEDIA_CONTROLLER_STALLED"),
+    "MEDIA_CONTROLLER_STALLED": Symbol("MEDIA_CONTROLLER_STALLED"),
+    "MEDIA_CONTROLLER_BUFFERING_AHEAD": Symbol("MEDIA_CONTROLLER_BUFFERING_AHEAD"),
 	"AUDIO_OBJECT_READY": Symbol("AUDIO_OBJECT_READY"),
 	"AUDIO_OBJECT_OPEN": Symbol("AUDIO_OBJECT_OPEN"),
 	"AUDIO_OBJECT_COMPLETED": Symbol("AUDIO_OBJECT_COMPLETED"),
@@ -26,7 +28,7 @@ const EventTypes = Object.freeze({
 	"DATA_STREAM_READING": Symbol("DATA_STREAM_READING"),
 	"PLAYLIST_TRACKS_ADDED": Symbol("PLAYLIST_TRACKS_ADDED"), // {list: [], added: []}
 	"PLAYLIST_TRACKS_REMOVED": Symbol("PLAYLIST_TRACKS_REMOVED"), // {list: [], removed: []}
-	"ERROR": Symbol("ERROR") // {error_message: ""}
+	"ERROR": Symbol("ERROR") // new Error()
 });
 
 // PRIVATE
@@ -70,8 +72,13 @@ class EventManager {
 	}
 
 	_isValidEvent(eventType) {
-		if (typeof eventType !== Symbol.name && !this.subscribers[eventType]) {
-			console.error(`No such event type exists or it's not a valid symbol: ${eventType}`);
+        if (eventType.constructor.name !== Symbol.name) {
+			console.error(`Event type is not a Symbol: ${eventType.constructor.name}`);
+			return false;
+		}
+        
+        if (!this.subscribers[eventType]) {
+			console.error(`No such event type exists: ${eventType.description}`);
 			return false;
 		}
 

@@ -2,7 +2,8 @@ import { JSUtils } from "./Utils.js";
 
 export class IndexManager {
 
-    constructor() {
+    constructor(entryPoint) {
+        this.entryPoint = entryPoint;
         this.MasterAudioTrackIndex = null;
 
         this.FILTER = Object.freeze({
@@ -25,9 +26,31 @@ export class IndexManager {
         return Object.seal(this);
     }
 
-    buildIndexes(clientIndex, backendIndex) {
+    load() {
+        var ClientIndex;
+        var BackendIndex;
+    
+        fetch(this.entryPoint + "/ClientIndex.json", {cache: "no-store", mode: "same-origin", method: "GET", redirect: "error"})
+        .then(response=> response.json())
+        .then(jsonResponse=> {
+            
+            ClientIndex = jsonResponse;
+            return fetch(this.entryPoint + "/BackendIndex.json", {cache: "no-store", mode: "same-origin", method: "GET", redirect: "error"});
+        })
+        .then(response=> response.json())
+        .then(jsonResponse=> {
+            
+            BackendIndex = jsonResponse;
+            this._buildIndexes(ClientIndex, BackendIndex);
+        });
+    }
+
+    _buildIndexes(clientIndex, backendIndex) {
         this.MasterAudioTrackIndex = JSUtils.deepFreeze(clientIndex);
         this.BackendIndex = JSUtils.deepFreeze(backendIndex);
+
+        console.log(`IndexManager: Client index loaded (${Object.keys(this.MasterAudioTrackIndex).length} tracks)`);
+        console.log(`IndexManager: Backend index loaded (${Object.keys(this.BackendIndex).length} tracks)`);
 
         for (let trackID in this.MasterAudioTrackIndex) {
             let currentTrack = this.MasterAudioTrackIndex[trackID];
@@ -71,17 +94,15 @@ export class IndexManager {
         Object.freeze(this.Indexes.ALBUMS_PER_ALBUM_ARTIST);
 
         Object.freeze(this);
-
-        JSUtils.Log(`Client index loaded (${Object.keys(this.MasterAudioTrackIndex).length} tracks)`);
-        JSUtils.Log(`Backend index loaded (${Object.keys(this.BackendIndex).length} tracks)`);
+        console.log(`IndexManager: indices built and ready`);
     }
 
     getTrackData(trackID) {
-        return this.MasterAudioTrackIndex[trackID || "-1"] || -1;
+        return this.MasterAudioTrackIndex[trackID || 0] || {ERROR: "INDEX DOES NOT EXIST FOR TRACK WITH ID" + trackID};
     }
 
     getBackendData(trackID) {
-        return this.BackendIndex[trackID || "-1"] || -1;
+        return this.BackendIndex[trackID || 0] || {ERROR: "INDEX DOES NOT EXIST FOR TRACK WITH ID" + trackID};
     }
 
     getCollection(filter=0, filterString="") {
@@ -133,6 +154,10 @@ export class IndexManager {
 
                 if (!currentAlbum.length)
                     delete returnData[currentArtistName][currentAlbumName];
+                else
+                    returnData[currentArtistName][currentAlbumName].sort((a,b)=> {
+                        return this.MasterAudioTrackIndex[a].Position - this.MasterAudioTrackIndex[b].Position;
+                    });
             });
 
             if (!Object.keys(returnData[albumArtist]).length)

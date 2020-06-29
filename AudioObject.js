@@ -1,5 +1,4 @@
 import {DataStream} from "./DataStream.js";
-import {JSUtils} from "./Utils.js";
 
 const STATES = Object.freeze({
     INITIALIZING: Symbol("INITIALIZING"),
@@ -11,7 +10,13 @@ const STATES = Object.freeze({
     DISPOSED: Symbol("DISPOSED")
 });
 
-class AudioObject {
+let Immutable = {
+    configurable: false,
+    enumerable: false,
+    writable: false
+};
+
+export class AudioObject {
     constructor(trackID, streamURL, mimeType, size, duration, events) {
 
         this.events = events;
@@ -22,6 +27,7 @@ class AudioObject {
         this.bufferSource = null;
         this.dataStream = null;
         this.objectURL = null;
+        this.duration = duration;
         this.mimeType = mimeType;
         this.bufferMark = 0;
 
@@ -30,9 +36,9 @@ class AudioObject {
 
         if (!MediaSource.isTypeSupported(this.mimeType)) {
             this.state = STATES.ERROR;
-            this.events.manager.trigger(this.events.types.ERROR, {error_message: "Mime-Type not supported: " + this.mimeType});
+            this.events.manager.trigger(this.events.types.ERROR, new Error("AudioObject: mime-type is not supported: " + mimeType));
 
-            return Object.seal(this);
+            return Object.freeze(this);
         }
 
         this.mediaSource = new MediaSource();
@@ -41,10 +47,15 @@ class AudioObject {
         // the media source object URL is set on the Audio-element
         // the media source object URL is set on a Source-element while appended to the Audio-element as a child
         this.mediaSource.addEventListener("sourceopen", ()=> {
-            if (this.state !== STATES.READY)
-                throw new Error("AudioObject: source was opened before the object was ready");
+            if (this.state !== STATES.READY)  {
+                this.state = STATES.ERROR;
+                this.events.trigger(this.events.types.ERROR, new Error("AudioObject: source was opened before the object was ready"));
+                
+                return;
+            }
 
-            this.mediaSource.duration = duration;
+            // We must pass duration and set it manually like this otherwise duration will be Infinite until the stream has been read to completion
+            this.mediaSource.duration = this.duration;
             this.bufferSource = this.mediaSource.addSourceBuffer(this.mimeType);
 
             this.bufferSource.addEventListener("updateend", ()=> {
@@ -63,7 +74,7 @@ class AudioObject {
 
             this.bufferSource.addEventListener("error", ()=> {
                 this.state = STATES.ERROR;
-                this.events.manager.trigger(this.events.types.ERROR);
+                this.events.manager.trigger(this.events.types.ERROR, new Error("AudioObject: the bufferSource threw an error"));
             });
 
             this.state = STATES.OPEN;
@@ -79,7 +90,15 @@ class AudioObject {
 
         }).catch(error=> {
             this.state = STATES.ERROR;
-            this.events.manager.trigger(this.events.types.ERROR, {error_message: error.message});
+            this.events.manager.trigger(this.events.types.ERROR, error);
+        });
+
+        Object.defineProperties(this, {
+            trackID: Immutable,
+            mediaSource: Immutable,
+            dataStream: Immutable,
+            duration: Immutable,
+            mimeType: Immutable
         });
 
         return Object.seal(this);
@@ -87,51 +106,19 @@ class AudioObject {
 
     // PUBLIC
     ready() {
-        return new Promise((resolve, reject)=> {
-            let audioObjectHandle = this;
-
-            let checkReadyStateID = setInterval(()=> {
-                if (audioObjectHandle.state == STATES.READY) {
-                    clearInterval(checkReadyStateID);
-                    resolve(audioObjectHandle.objectURL);
-                }
-
-                if (audioObjectHandle.state == STATES.ERROR) {
-                    clearInterval(checkReadyStateID);
-                    reject(audioObjectHandle.error);
-                }
-            }, 200);
-
-        });
+        return this._waitForState(STATES.READY);
     }
 
     open() {
-        return new Promise((resolve, reject)=> {
-            let audioObjectHandle = this;
-
-            let checkReadyStateID = setInterval(()=> {
-                if (audioObjectHandle.state == STATES.OPEN) {
-                    clearInterval(checkReadyStateID);
-                    resolve(audioObjectHandle.objectURL);
-                }
-
-                if (audioObjectHandle.state == STATES.ERROR) {
-                    clearInterval(checkReadyStateID);
-                    reject(audioObjectHandle.error);
-                }
-            }, 200);
-
-        });
+        return this._waitForState(STATES.OPEN);
     }
 
     bufferUntil(seconds) {
         if (this.state !== STATES.OPEN) return;
 
-        JSUtils.Log(`AudioObject: buffering ahead... (${JSUtils.getReadableTime(seconds)} || ${seconds})`);
-
         this.bufferMark = seconds;
         this.state = STATES.BUFFERING;
-        this.events.manager.trigger(this.events.types.AUDIO_OBJECT_BUFFERING);
+        this.events.manager.trigger(this.events.types.AUDIO_OBJECT_BUFFERING, {bufferMark: seconds});
 
         this._buffer();
     }
@@ -139,7 +126,6 @@ class AudioObject {
     dispose() {
         if (this.state === STATES.DISPOSED) return;
 
-        JSUtils.Log("AudioObject: disposing object (revoke object URL, close stream and media source)");
         URL.revokeObjectURL(this.objectURL);
 
         this.dataStream.close();
@@ -177,7 +163,6 @@ class AudioObject {
 
         if (this.bufferSource.buffered.length && this.bufferSource.buffered.end(0) > this.bufferMark) {
             
-            JSUtils.Log("AudioObject: ...buffering ended");
             this.bufferMark = 0;
             this.state = STATES.OPEN;
             this.events.manager.trigger(this.events.types.AUDIO_OBJECT_OPEN);
@@ -190,19 +175,33 @@ class AudioObject {
             if (result.chunk) this.bufferSource.appendBuffer(result.chunk);
             if (!result.done) return;
 
-            JSUtils.Log("AudioObject: data stream read to completion, closing");
             this.state = STATES.COMPLETED;
             this.events.manager.trigger(this.events.types.AUDIO_OBJECT_COMPLETED);
             
             this.dataStream.close();
-            setTimeout(()=> this.mediaSource.endOfStream(), 500);
+            setTimeout(()=> this.mediaSource.endOfStream(), 500); // A delay because the sourcebuffer might still be updating
         })
         .catch(error=> {
             this.state = STATES.ERROR;
-            this.events.manager.trigger(this.events.types.ERROR);
-            JSUtils.Log(error || "AudioObject: error while reading from data stream", "ERROR");
+            this.events.manager.trigger(this.events.types.ERROR, new Error("AudioObject: error while reading from datastream - " + error.message));
         })
     }
-}
 
-export {AudioObject};
+    _waitForState(state) {
+        return new Promise((resolve, reject)=> {
+            let audioObjectHandle = this;
+
+            let waitForStateID = setInterval(()=> {
+                if (audioObjectHandle.state === state) {
+                    clearInterval(waitForStateID);
+                    resolve(audioObjectHandle.objectURL);
+                }
+
+                if (audioObjectHandle.state === STATES.ERROR || audioObjectHandle.state === STATES.DISPOSED || audioObjectHandle.state === STATES.COMPLETED) {
+                    clearInterval(waitForStateID);
+                    reject(`AudioObject: Unable to wait for state, object has errored, been disposed or is completed (state: ${audioObjectHandle.state.description})`);
+                }
+            }, 10);
+        });
+    }
+}

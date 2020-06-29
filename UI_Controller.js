@@ -21,7 +21,7 @@ export class UI_Controller {
             LibraryAlbumSelectedCount: "span.AlbumSelectedCount",
             LibraryAlbumTrackListContainer: "ol.AlbumTrackList",
             LibraryAlbumListContainer: "section.AlbumList",
-            LibraryAlbumContainer: ".Album",
+            LibraryAlbumContainer: ".Album"
         });
 
         console.log("UI Controller instantiated" + `${this.services ? ", with services" : ""}`);
@@ -29,6 +29,8 @@ export class UI_Controller {
     }
 
     init() {
+
+        this.elements.InfoLog                       = document.getElementById("LogOutput");
         
         // Library
         this.elements.UI_LibraryList                = document.getElementById("LibraryList");
@@ -100,6 +102,7 @@ export class UI_Controller {
     _initEventHandlers() {
         let player = this.services.get("player");
         let playlist = this.services.get("playlist");
+        let events = this.services.get("events");
 
         // Player interaction handlers
         this.elements.UI_Play.addEventListener("click", ()=> player.play());
@@ -132,38 +135,35 @@ export class UI_Controller {
         player.audioElement.addEventListener("pause", ()=> this.elements.UI_Player_State.innerText = "PAUSED");
         player.audioElement.addEventListener("timeupdate", ()=> this.elements.UI_PlayCursor.innerText = JSUtils.getReadableTime(player.audioElement.currentTime));
 
-        let events = this.services.get("events");
+        events.manager.subscribe(events.types.ERROR, this._onError, this);
 
-        events.manager.subscribe(events.types.MEDIA_CONTROLLER_DURATION_CHANGED, this._onDurationChanged, this);
+        events.manager.subscribe(events.types.MEDIA_CONTROLLER_LOADING_NEXT_TRACK, function(eventData) { JSUtils.Log(this.elements.InfoLog, `MEDIA_CONTROLLER_LOADING_NEXT_TRACK (${eventData.trackID} | ${eventData.rotateImmediately})`) }, this);
+        events.manager.subscribe(events.types.MEDIA_CONTROLLER_PREPARING_NEXT_TRACK, function() { JSUtils.Log(this.elements.InfoLog, "MEDIA_CONTROLLER_PREPARING_NEXT_TRACK") }, this);
+        events.manager.subscribe(events.types.MEDIA_CONTROLLER_TRACK_PLAYABLE, function() { JSUtils.Log(this.elements.InfoLog, "MEDIA_CONTROLLER_TRACK_PLAYABLE") }, this);
+        events.manager.subscribe(events.types.MEDIA_CONTROLLER_METADATA_LOADED, function() { JSUtils.Log(this.elements.InfoLog, "MEDIA_CONTROLLER_METADATA_LOADED") }, this);
+        events.manager.subscribe(events.types.MEDIA_CONTROLLER_BUFFERING_AHEAD, function() { JSUtils.Log(this.elements.InfoLog, "MEDIA_CONTROLLER_BUFFERING_AHEAD") }, this);
+        events.manager.subscribe(events.types.MEDIA_CONTROLLER_TRACK_ENDED, function() { JSUtils.Log(this.elements.InfoLog, "MEDIA_CONTROLLER_TRACK_ENDED") }, this);
+        events.manager.subscribe(events.types.MEDIA_CONTROLLER_PLAYING, function() { JSUtils.Log(this.elements.InfoLog, "MEDIA_CONTROLLER_PLAYING") }, this);
+        events.manager.subscribe(events.types.MEDIA_CONTROLLER_PAUSED, function() { JSUtils.Log(this.elements.InfoLog, "MEDIA_CONTROLLER_PAUSED") }, this);
+        events.manager.subscribe(events.types.MEDIA_CONTROLLER_MUTED, function() { JSUtils.Log(this.elements.InfoLog, "MEDIA_CONTROLLER_MUTED") }, this);
+        events.manager.subscribe(events.types.MEDIA_CONTROLLER_DURATION_CHANGED, function(eventData){ JSUtils.Log(this.elements.InfoLog, `MEDIA_CONTROLLER_DURATION_CHANGED`); this.elements.UI_Player_Duration.innerText = JSUtils.getReadableTime(eventData.duration) }, this);
+        events.manager.subscribe(events.types.MEDIA_CONTROLLER_WAITING, function(){ JSUtils.Log(this.elements.InfoLog, `MEDIA_CONTROLLER_WAITING`, "WARNING"); this.elements.UI_Player_State.innerText = "WAITING..."}, this);
+        events.manager.subscribe(events.types.MEDIA_CONTROLLER_STALLED, function(){ JSUtils.Log(this.elements.InfoLog, `MEDIA_CONTROLLER_STALLED`, "WARNING"); this.elements.UI_Player_State.innerText = "STALLED!"}, this);
+        events.manager.subscribe(events.types.MEDIA_CONTROLLER_TRACK_ROTATED, this._onTrackRotated, this);
 
-        events.manager.subscribe(events.types.MEDIA_CONTROLLER_TRACK_ROTATED, function(eventData){
-            this._resetPlayerUI();
-            this.elements.UI_Datastream_BytesExpected.innerText = JSUtils.getReadableBytes(eventData.trackData.Size);
-            this.elements.UI_Datastream_Progress.max = eventData.trackData.Size;
-            this._resetTrackInfoUI(eventData.trackData);
-
-            let currentlyPlaying = document.querySelector(this.selectors.PlaylistCurrentlyPlaying);
-            if (currentlyPlaying) currentlyPlaying.classList.remove("Playing");
-            document.querySelector(`.PlaylistEntry[data-trackid='${eventData.trackID}']`).classList.add("Playing");
-        }, this);
-
-        events.manager.subscribe(events.types.MEDIA_CONTROLLER_WAITING, function(){ this.elements.UI_Player_State.innerText = "WAITING..."}, this);
-        events.manager.subscribe(events.types.MEDIA_CONTROLLER_STALLED, function(){ this.elements.UI_Player_State.innerText = "STALLED!"}, this);
         events.manager.subscribe(events.types.AUDIO_OBJECT_OPEN, function(){ this.elements.UI_AudioObject_State.innerText = "OPEN" }, this);
-        events.manager.subscribe(events.types.AUDIO_OBJECT_READY, function(){ this.elements.UI_AudioObject_State.innerText = "READY" }, this);
-        events.manager.subscribe(events.types.AUDIO_OBJECT_COMPLETED, function(){ this.elements.UI_AudioObject_State.innerText = "COMPLETED" }, this);
-        events.manager.subscribe(events.types.AUDIO_OBJECT_DISPOSED, function(){ this.elements.UI_AudioObject_State.innerText = "DISPOSED" }, this);
-        events.manager.subscribe(events.types.AUDIO_OBJECT_BUFFERING, function(){ this.elements.UI_AudioObject_State.innerText = "BUFFERING" }, this);
-        events.manager.subscribe(events.types.DATA_STREAM_OPEN, function(){this.elements.UI_Datastream_State.innerText = "OPEN"}, this);
-        events.manager.subscribe(events.types.DATA_STREAM_CLOSED, function(){this.elements.UI_Datastream_State.innerText = "CLOSED"}, this);
-        events.manager.subscribe(events.types.DATA_STREAM_READING, function(){this.elements.UI_Datastream_State.innerText = "READING"}, this);
-        // events.manager.subscribe(events.types.ERROR, function(data){if (data && data.error_message) this.elements.UI_Error.innerText = data.error_message}, this);
-        
+        events.manager.subscribe(events.types.AUDIO_OBJECT_READY, function(){ JSUtils.Log(this.elements.InfoLog, `AUDIO_OBJECT_READY`); this.elements.UI_AudioObject_State.innerText = "READY" }, this);
+        events.manager.subscribe(events.types.AUDIO_OBJECT_COMPLETED, function(){ JSUtils.Log(this.elements.InfoLog, `AUDIO_OBJECT_COMPLETED`); this.elements.UI_AudioObject_State.innerText = "COMPLETED" }, this);
+        events.manager.subscribe(events.types.AUDIO_OBJECT_DISPOSED, function(){ JSUtils.Log(this.elements.InfoLog, `AUDIO_OBJECT_DISPOSED`); this.elements.UI_AudioObject_State.innerText = "DISPOSED" }, this);
+        events.manager.subscribe(events.types.AUDIO_OBJECT_BUFFERING, function(eventData){ JSUtils.Log(this.elements.InfoLog, `AUDIO_OBJECT_BUFFERING (${eventData.bufferMark})`); this.elements.UI_AudioObject_State.innerText = "BUFFERING" }, this);
         events.manager.subscribe(events.types.AUDIO_OBJECT_BUFFER_UPDATED, function(data){
             this.elements.UI_Buffered_Until.innerText = JSUtils.getReadableTime(data.buffered_until);
             this.elements.UI_Buffer_Tail.innerText = JSUtils.getReadableTime(data.buffered_from);
         }, this);
 
+        events.manager.subscribe(events.types.DATA_STREAM_OPEN, function(){this.elements.UI_Datastream_State.innerText = "OPEN"}, this);
+        events.manager.subscribe(events.types.DATA_STREAM_CLOSED, function(){ JSUtils.Log(this.elements.InfoLog, `DATA_STREAM_CLOSED`); this.elements.UI_Datastream_State.innerText = "CLOSED"}, this);
+        events.manager.subscribe(events.types.DATA_STREAM_READING, function(){this.elements.UI_Datastream_State.innerText = "READING"}, this);
         events.manager.subscribe(events.types.DATA_STREAM_CHUNK_RECEIVED, function(data){
             this.elements.UI_Datastream_BytesRead.innerText = JSUtils.getReadableBytes(data.bytes_total);
             this.elements.UI_Datastream_Progress.value = data.bytes_total;
@@ -191,7 +191,7 @@ export class UI_Controller {
             document.querySelectorAll(this.selectors.LibraryToggleArtist).forEach(element=> element.click());
         });
 
-        this.elements.UI_ResetLibrary.addEventListener("click", ()=> this._createLibraryList( this.services.get("indexes").getCollection() ));
+        this.elements.UI_ResetLibrary.addEventListener("click", ()=> this.elements.UI_LibraryList.innerHTML = "");
         this.elements.UI_SelectAllInLibrary.addEventListener("click", ()=> this._selectAllTracks(false));
 
         // Playlist
@@ -385,10 +385,6 @@ export class UI_Controller {
         });
     }
 
-    _onDurationChanged(eventData) {
-        this.elements.UI_Player_Duration.innerText = `${JSUtils.getReadableTime(eventData.duration)} | ${eventData.duration}`;
-    }
-
     _resetPlayerUI() {
 
         this.elements.UI_PlayCursor.innerText               = "00:00";
@@ -413,7 +409,7 @@ export class UI_Controller {
         this.elements.UI_TrackArtists.innerText   = data.TrackArtists || "N/A";
         this.elements.UI_Year.innerText           = data.Year || "N/A";
         this.elements.UI_Genres.innerText         = data.Genres || "N/A";
-        this.elements.UI_Duration.innerText       = data.Duration ? `${JSUtils.getReadableTime(data.Duration)} | ${data.Duration}` : "N/A";
+        this.elements.UI_Duration.innerText       = data.Duration || "N/A";
         this.elements.UI_Mimetype.innerText       = data.Mimetype || "N/A";
         this.elements.UI_Size.innerText           = data.Size ? data.Size + " bytes" : "0 bytes";
         this.elements.UI_ReplayGain.innerText     = data.ReplayGain || "N/A";
@@ -433,6 +429,7 @@ export class UI_Controller {
 
     _createLibraryList(manifest) {
         let start = performance.now();
+        // TODO(thomas): Tracks need to be ordered in each album per their position
 
         if (!Object.keys(manifest).length) {
             this.elements.UI_LibraryList.innerHTML = "<h1>Nothing found</h1>";
@@ -511,5 +508,28 @@ export class UI_Controller {
 
         if (this.elements.UI_LibrarySearchText.value.length >= this.librarySearchTextThreshold) this.elements.UI_SearchLibrary.disabled = false;
         console.warn(`_createLibraryList took ${(performance.now() - start).toFixed(2)} ms`);
+    }
+
+    _onError(error) {
+        if (error instanceof Error) {
+            JSUtils.Log(error.message, "ERROR");
+            console.error(error);
+            return;
+        }
+
+        JSUtils.Log(this.elements.InfoLog, "Error-param is not an instance of Error: " + error.constructor.name, "WARNING");
+    }
+
+    _onTrackRotated(eventData) {
+        JSUtils.Log(this.elements.InfoLog, `MEDIA_CONTROLLER_TRACK_ROTATED (${eventData.trackID})`);
+
+        this._resetPlayerUI();
+        this.elements.UI_Datastream_BytesExpected.innerText = JSUtils.getReadableBytes(eventData.trackData.Size);
+        this.elements.UI_Datastream_Progress.max = eventData.trackData.Size;
+        this._resetTrackInfoUI(eventData.trackData);
+
+        let currentlyPlaying = document.querySelector(this.selectors.PlaylistCurrentlyPlaying);
+        if (currentlyPlaying) currentlyPlaying.classList.remove("Playing");
+        document.querySelector(`.PlaylistEntry[data-trackid='${eventData.trackID}']`).classList.add("Playing");
     }
 }

@@ -1,4 +1,3 @@
-import { JSUtils } from "./Utils.js";
 import { AudioObject } from "./AudioObject.js";
 
 /*
@@ -12,13 +11,23 @@ import { AudioObject } from "./AudioObject.js";
     - Call load() on Audio-element to rescan sources and select one available
 */
 
+/* WORKFLOW:
+    - loadNextTrack() prepares the next song. It does so by creating a new AudioObject() which is stored in nextAudioTrack
+    - if loadNextTrack() is called with true as second param OR the current track has ended playback _rotateTrack() is called
+    - _rotateTrack() swaps nextAudioTrack over to currentAudioTrack, nulling nextAudioTrack
+    - it then swaps currentSourceElement with nextSourceElement, while also setting nextSourceElement.src to empty string
+    - it calls audioElement.load() which causes the HTMLMediaElement to rescan its Source-elements, picking the one with an valid src-attrib
+    - then it calls currentAudioTrack.open(), which upon success calls currentAudioTrack.bufferUntil()
+    - once the AudioObject() has enough frames to play, playback is automatically started (this._onTrackPlayable, triggerd via the "canplay" event)
+*/
+
 let Immutable = {
     configurable: false,
     enumerable: false,
     writable: false
 };
 
-class MediaController {
+export class MediaController {
     
     constructor(serviceLocator) {
         // Properties
@@ -38,6 +47,7 @@ class MediaController {
         this.playCursorLastUpdated = 0;
         this.desiredBufferHead = 120;
         this.bufferAheadTriggerTreshold = 30;
+        this.preparingNextTrackThreshold = 5;
         this.unreachableSourcesLimit = 3;
         this.unreachableSources = 0;
 
@@ -58,9 +68,9 @@ class MediaController {
         });
     
         // Event handlers
-        this.audioElement.addEventListener("loadedmetadata", this._onTrackMetadataLoaded.bind(this));
-        this.audioElement.addEventListener("waiting", this._onWaiting.bind(this));
-        this.audioElement.addEventListener("stalled", this._onStalled.bind(this));
+        this.audioElement.addEventListener("loadedmetadata", ()=> this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_METADATA_LOADED));
+        this.audioElement.addEventListener("waiting", ()=> this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_WAITING));
+        this.audioElement.addEventListener("stalled", ()=> this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_STALLED));
         this.audioElement.addEventListener("ended", this._onTrackEnded.bind(this));
         this.audioElement.addEventListener("canplay", this._onTrackPlayable.bind(this));
         this.audioElement.addEventListener("error", this._onError.bind(this));
@@ -78,7 +88,6 @@ class MediaController {
 
         this.audioElement.play().then(()=> {
             this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_PLAYING);
-            JSUtils.Log("MediaController: Playback started");
         })
         .catch(error=> this._onError(error));
     }
@@ -86,13 +95,11 @@ class MediaController {
     pause() {
         this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_PAUSED);
         this.audioElement.pause();
-        JSUtils.Log("MediaController: Playback paused");
     }
 
     mute() {
         this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_MUTED);
         this.audioElement.muted = !this.audioElement.muted;
-        JSUtils.Log(`MediaController: Volume ${this.audioElement.muted ? "muted" : "un-muted"}`);
     }
 
     setVolume(volume) {
@@ -102,15 +109,14 @@ class MediaController {
 
     // This is the one called from outside when clicking on a track from the playlist
     loadNextTrack(trackID, load) {
-        this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_LOADING_NEXT_TRACK);
-        JSUtils.Log("MediaController: Loading next track: " + trackID);
+        this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_LOADING_NEXT_TRACK, {trackID: trackID, rotateImmediately: load});
 
         const TrackData = this.services.get("indexes").MasterAudioTrackIndex[trackID];
         const BackendData = this.services.get("indexes").BackendIndex[trackID]; // TODO(thomas): Needs to be taken out eventually
 
         if (!TrackData) {
-            JSUtils.Log("MediaController: TrackData could not be loaded from index: " + trackID, "ERROR");
-            throw new Error("TrackData could not be loaded: " + trackID);
+            this.events.manager.trigger(this.events.types.ERROR, new Error("MediaController: TrackData could not be loaded from index: " + trackID));
+            return;
         }
 
         let nextAudioTrack = new AudioObject(
@@ -137,17 +143,13 @@ class MediaController {
             nextAudioTrack.dispose();
             this.nextAudioTrack = null;
 
-            JSUtils.Log("MediaController: nextAudioTrack.ready() threw an error", "ERROR");
-            JSUtils.Log(error);
-
+            this.events.manager.trigger(this.events.types.ERROR, error);
             this._prepareNextTrack();
         })
     }
 
     // PRIVATE
     _rotateTrack() {
-        JSUtils.Log("MediaController: Rotating tracks");
-
         // First time through currentTrack will be null
         if (this.currentAudioTrack) this.currentAudioTrack.dispose();
 
@@ -163,10 +165,10 @@ class MediaController {
         // Loads triggers the "timeupdate"-event if currentTime is above 0 (if another track has been playing), because it moves the cursor back to 0 again
         this.audioElement.load();
         this.preparingNextTrack = false;
-        
-        this.currentAudioTrack.open().then(()=> {
-            JSUtils.Log(`MediaController: Track data stream is open, buffering ahead (${JSUtils.getReadableTime(this.desiredBufferHead)})`);
-            this.currentAudioTrack.bufferUntil(this.desiredBufferHead);
+        this.currentAudioTrack.open().then(()=> this.currentAudioTrack.bufferUntil(this.desiredBufferHead))
+        .catch(error=> {
+            this.events.trigger(this.events.types.ERROR, error);
+            this._prepareNextTrack();
         });
 
         this.events.manager.trigger(
@@ -179,42 +181,34 @@ class MediaController {
     }
 
     _prepareNextTrack() {
-        JSUtils.Log("MediaController: Preparing next track in queue...");
+        this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_PREPARING_NEXT_TRACK);
 
         let nextTrackID = this.services.get("playlist").getNext();
-        if (nextTrackID) 
+        if (nextTrackID)
             this.loadNextTrack(nextTrackID, false);
-        else 
-            JSUtils.Log("MediaController: ...but queue is empty!!!");
     }
 
     _onTrackEnded() {
         this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_TRACK_ENDED);
-        JSUtils.Log("MediaController: Playback ended for current track");
         if (this.nextAudioTrack) this._rotateTrack();
     }
 
     _onTrackPlayable() {
         this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_TRACK_PLAYABLE);
-        JSUtils.Log("MediaController: Enough audio frames to start playback");
         this.play();
     }
 
     _onError(error) {
-        this.events.manager.trigger(this.events.types.ERROR, {error_message: error});
-        // if (this.audioElement.error.name === "QuotaExceededError")
-            // JSUtils.Log("SourceBuffer overflowed", "ERROR");
+        this.events.manager.trigger(this.events.types.ERROR, error);
+        if (this.audioElement.error && this.audioElement.error.name === "QuotaExceededError")
+            this.events.manager.trigger(this.events.types.ERROR, new Error("MediaController: SourceBuffer overflowed. Too much data was added, without the ability for the sourcebuffer to trim"));
         
-        if (error) JSUtils.Log(error, "ERROR");
-        if (this.audioElement.error) JSUtils.Log(this.audioElement.error, "ERROR");
         // Perhaps consider a way to ensure that the 2 minutes of data we buffer ahead doesn't overflow the buffer? Unlikely, but still
     }
 
     _onDurationChange() {
         if (this.audioElement.duration === Infinity) return;
-
         this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_DURATION_CHANGED, {duration: this.audioElement.duration});
-        JSUtils.Log(`MediaController: Duration changed (${this.audioElement.duration})`);
     }
 
     _onPlayCursorChange() {
@@ -223,8 +217,7 @@ class MediaController {
 
         this.playCursorLastUpdated = performance.now();
 
-        if (!this.preparingNextTrack && (this.audioElement.duration - this.audioElement.currentTime || 9999) <= 5) {
-            JSUtils.Log("MediaController: Current track almost at end...");
+        if (!this.preparingNextTrack && (this.audioElement.duration - this.audioElement.currentTime || 9999) <= this.preparingNextTrackThreshold) {
             this.preparingNextTrack = true;
             this._prepareNextTrack();
         }
@@ -233,26 +226,9 @@ class MediaController {
         
         if (this.audioElement.buffered.length && this.audioElement.buffered.end(0) - this.audioElement.currentTime < this.bufferAheadTriggerTreshold)
         {
-            JSUtils.Log("MediaController: Audio buffer below threshold, buffering ahead until " + JSUtils.getReadableTime(this.audioElement.buffered.end(0) + this.desiredBufferHead));
-            this.currentAudioTrack.bufferUntil(this.audioElement.buffered.end(0) + this.desiredBufferHead);
+            let bufferMark = this.audioElement.buffered.end(0) + this.desiredBufferHead;
+            this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_BUFFERING_AHEAD, {bufferMark: bufferMark});
+            this.currentAudioTrack.bufferUntil(bufferMark);
         }
     }
-
-    _onTrackMetadataLoaded() {
-        this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_METADATA_LOADED);
-        JSUtils.Log("MediaController: Metadata from current track loaded");
-    }
-
-    _onWaiting() {
-        this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_WAITING);
-        JSUtils.Log("MediaController: Playback stopped - lack of data from source. This may be temporary (latency, seeking)", "WARNING");
-    }
-
-    _onStalled() {
-        this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_STALLED);
-        JSUtils.Log("MediaController: Streaming data from media source has stalled", "ERROR");
-    }
-
 }
-
-export {MediaController};

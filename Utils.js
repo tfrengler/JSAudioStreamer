@@ -106,7 +106,7 @@ JSUtils.fetchWithTimeout = function(url, timeout, requestOptions=0) {
 		let timer = setTimeout(
 			() => {
 				abortController.abort();
-				reject( new Error(`Request timed out (${timeout} ms)`) )
+				reject( new Error(`Fetch request timed out (${url} | ${timeout} ms)`) )
 			},
 			timeout
 		);
@@ -193,13 +193,16 @@ JSUtils.waitForEvent = function(emitter, eventName, timeout=0) {
     });
 };
 
-JSUtils.Log = function(message, type)
+JSUtils.Log = function(outputHandle, message, type)
 {
-    // In case an error-object is received
+	if (!outputHandle || outputHandle && !(outputHandle instanceof HTMLElement))
+		throw new Error("Unable to log message. Parameter 'outputHandle' is not passed or is not an HTMLElement");
+
+    // In case an error-object is received. Normally we accept strings, but a native Error is also allowed
     if (typeof message === typeof {} && message.message)
 		message = message.message;
 	else if (typeof message === typeof {})
-		message = "NOTE: Object with no message-attribute received";
+		message = `WARNING: Object with no message-attribute received (${message.constructor.name})`;
 
     const LogMessage = document.createElement("div");
 
@@ -219,10 +222,10 @@ JSUtils.Log = function(message, type)
 
     LogMessage.innerHTML = `[${hours}:${minutes}:${seconds}:${now.getMilliseconds()}]: ` + (message || "No log message? This is bad cap'n");
 
-    if (LogOutput.children.length >= 40)
-        LogOutput.removeChild(LogOutput.children[0]);
+    if (outputHandle.children.length >= 40)
+        outputHandle.removeChild(outputHandle.children[0]);
 
-    LogOutput.appendChild(LogMessage);
+    outputHandle.appendChild(LogMessage);
 }
 
 Object.freeze(JSUtils);

@@ -8,51 +8,61 @@ const STATES = Object.freeze({
     "READING": Symbol("READING")
 });
 
-class DataStream {
+let Immutable = {
+    configurable: false,
+    enumerable: false,
+    writable: false
+};
+
+export class DataStream {
 
     constructor(streamURL, bytesExpected, events) {
 
-        this.events         = events;
+        this.events         = events || null;
 
         this.chunkSize      = 64 * 1024;
+        this.readInterval   = 500;
+        this.streamURL      = streamURL;
+        this.bytesExpected  = bytesExpected;
+        this.readTimeout    = 10000;
+        this.checkTimeout   = 3000;
+
         this.state          = STATES.INITIAL;
         this.bytesRead      = 0;
-        this.bytesExpected  = bytesExpected;
-        this.streamURL      = streamURL;
-        this.readInterval   = 500;
         this.lastRead       = 0;
 
         if (!streamURL || !bytesExpected) 
             throw new Error("Argument streamURL or bytesExpected is not defined");
+
+        Object.defineProperties(this, {
+            chunkSize: Immutable,
+            readInterval: Immutable,
+            streamURL: Immutable,
+            readTimeout: Immutable,
+            checkTimeout: Immutable
+        });
         
         return Object.seal(this);
     }
 
-    open() {
+    open() { // async
+        if (this.state !== STATES.INITIAL) 
+            return Promise.reject(new Error(`DataStream: Attempt to re-open stream (state: ${this.state.description})`));
+
         return new Promise((resolve, reject)=> {
-            if (this.state !== STATES.INITIAL) {
-                reject("DataSource: unable to open data stream because we are beyond the initial state");
-                return;
-            }
 
             JSUtils.fetchWithTimeout(this.streamURL, 3000, {method: "HEAD", mode: "no-cors"})
             .then(response=> {
-                if (response.status != "200") {
+                if (response.status !== 200) {
                     this.state = STATES.ERROR;
-                    this.events.manager.trigger(this.events.types.ERROR, {error_message: `DataSource: stream URL not reachable (${this.streamURL}). Response: ${response.status}`});
-                    
-                    reject("DataSource: stream URL not reachable: " + this.streamURL);
-                    return;
+                    reject(new Error(`DataStream: URL not reachable (${this.streamURL}), response status: ${response.status}`));
                 }
 
                 this.bytesExpected = parseInt(response.headers.get("Content-Length"));
 
                 if (!this.bytesExpected) {
                     this.state = STATES.ERROR;
-                    this.events.manager.trigger(this.events.types.ERROR, {error_message: "DataSource: no content-length header in response"});
-                    
-                    reject("DataSource: no content-length header in response");
-                    return;
+                    reject(new Error("DataStream: No 'Content-Length'-header in response when pre-checking stream"));
                 }
 
                 this.state = STATES.OPEN;
@@ -61,30 +71,25 @@ class DataStream {
             })
             .catch(error=> {
                 this.state = STATES.ERROR;
-                this.events.manager.trigger(this.events.types.ERROR, {error_message: "DataStream: error during fetchWithTimeout"});
-
-                if (typeof error === typeof "" && error === "FETCH_REQUEST_TIMEOUT")
-                    reject("DataSource: timed out trying to reach the stream URL: " + this.streamURL);
-                else    
-                    reject(error);
+                reject(error);
             });
 
         })
     }
 
-    async read() {
+    async read() { // async, doh
+        if (this.state === STATES.CLOSED || this.isDone())
+            Promise.resolve({chunk: null, done: true});
+
+        if (this.state !== STATES.OPEN) 
+            Promise.reject(new Error(`DataStream: Cannot read from stream as it is not open or in the process of being read (state: ${this.state.description})`));
+
         let difference = performance.now() - this.lastRead;
         
         if (difference < this.readInterval)
             await JSUtils.wait(this.readInterval - difference);
 
         return new Promise((resolve, reject)=> {
-
-            if (this.state === STATES.CLOSED || this.isDone())
-                resolve({chunk: null, done: true});
-
-            if (this.state !== STATES.OPEN)
-                reject("Stream is not open or in the process of being read");
 
             this.state = STATES.READING;
             this.events.manager.trigger(this.events.types.DATA_STREAM_READING);
@@ -94,14 +99,12 @@ class DataStream {
             let ByteRangeTo = this.bytesRead + this.chunkSize >= this.bytesExpected ? "" : this.bytesRead + this.chunkSize;
             let RequestHeaders = new Headers({"Range": `bytes=${ByteRangeFrom}-${ByteRangeTo}`});
 
-            JSUtils.fetchWithTimeout(this.streamURL, 3000, {cache: "no-store", mode: "same-origin", method: "GET", redirect: "error", headers: RequestHeaders})
+            JSUtils.fetchWithTimeout(this.streamURL, this.readTimeout, {cache: "no-store", mode: "same-origin", method: "GET", redirect: "error", headers: RequestHeaders})
             .then(response=> {
 
                 if (response.status !== 206) {
                     this.state = STATES.ERROR;
-                    this.events.manager.trigger(this.events.types.ERROR, {error_message: `DataSource: stream URL did not return partial content (${this.streamURL}). Response: ${response.status}`});
-                    
-                    reject(`DataSource: stream URL did not return partial content (${this.streamURL}). Response: ${response.status}`);
+                    reject(new Error(`DataStream: URL did not return partial content (${this.streamURL}), response: ${response.status}`));
                 }
 
                 return response.arrayBuffer();
@@ -125,7 +128,6 @@ class DataStream {
             })
             .catch(error=> {
                 this.state = STATES.ERROR;
-                this.events.manager.trigger(this.events.types.ERROR, {error_message: "DataStream: error reading from stream"});
                 reject(error);
             });
         })
@@ -145,5 +147,3 @@ class DataStream {
         return this.state === STATES.CLOSED;
     }
 }
-
-export {DataStream};
