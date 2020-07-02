@@ -20,7 +20,7 @@ const EventTypes = Object.freeze({
 	"AUDIO_OBJECT_READY": Symbol("AUDIO_OBJECT_READY"), // {object_url: string}
 	"AUDIO_OBJECT_OPEN": Symbol("AUDIO_OBJECT_OPEN"), // void
 	"AUDIO_OBJECT_COMPLETED": Symbol("AUDIO_OBJECT_COMPLETED"), // void
-	"AUDIO_OBJECT_DISPOSED": Symbol("AUDIO_OBJECT_DISPOSED"), // void
+	"AUDIO_OBJECT_DISPOSED": Symbol("AUDIO_OBJECT_DISPOSED"), // {object_url: string, mediasource_state: string});
 	"AUDIO_OBJECT_BUFFERING": Symbol("AUDIO_OBJECT_BUFFERING"), // {bufferMark: number}
 	"AUDIO_OBJECT_BUFFER_UPDATED": Symbol("AUDIO_OBJECT_BUFFER_UPDATED"), // {buffered_until: number, buffered_from: number}
 	"AUDIO_OBJECT_BUFFER_MARK_REACHED": Symbol("AUDIO_OBJECT_BUFFER_MARK_REACHED"), // {from: number, until: until}

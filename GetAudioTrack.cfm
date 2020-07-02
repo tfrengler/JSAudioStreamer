@@ -7,10 +7,16 @@
 <cfheader name="access-control-max-age" value="86400" />
 
 <cfparam name="URL.ID" type="string" default="NO_ID_PASSED_IN_URL" />
+<cfset mimeType = "application/octet-stream" />
 
 <cfif structKeyExists(application.backendIndex, URL.ID) >
     <cfset backendEntry = application.backendIndex[URL.ID] />
-    <cfset filePath = "#application.musicRoot##backendEntry.RelativePath#/#backendEntry.FileName#" />
+    <cfif application.m4aRoot NEQ null AND listLast(backendEntry.FileName, ".") EQ "m4a" >
+        <cfset filePath = "#application.m4aRoot##backendEntry.RelativePath#/#backendEntry.FileName#" />
+    <cfelse>
+        <cfset filePath = "#application.musicRoot##backendEntry.RelativePath#/#backendEntry.FileName#" />
+    </cfif>
+
 <cfelse>
     <cfheader statuscode="400" statustext="ID does not exist in backendindex: #URL.ID#" />
     <cfabort/>
@@ -23,14 +29,5 @@
     <cfheader name="Content-Length" value=#getFileInfo(filePath).size# />
 </cfif> --->
 
-<cfset mimeType = "application/octet-stream" />
-<cfset fileExt = listLast(backendEntry.FileName, ".") />
-
-<cfif fileExt EQ "m4a" >
-    <cfset mimeType = "audio/mp4;codecs='mp4a.40.2'" />
-<cfelseif fileExt EQ "mp3" >
-    <cfset mimeType = "audio/mpeg" />
-</cfif>
-
 <cfheader name="Content-Disposition" value="inline" />
-<cfcontent file=#filePath# type=#mimeType# />
+<cfcontent file=#filePath# type="application/octet-stream" />

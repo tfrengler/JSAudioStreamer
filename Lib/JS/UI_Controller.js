@@ -90,9 +90,9 @@ export class UI_Controller {
 
         this.elements.UI_Playlist.style.maxHeight = window.innerHeight + "px";
         this.elements.UI_Audio_Buffer_Limit.innerText = JSUtils.getReadableBytes(player.CHROME_SOURCEBUFFER_LIMIT);
-        this.elements.UI_Audio_Buffer_Limit.max = player.CHROME_SOURCEBUFFER_LIMIT;
-        this.elements.UI_Audio_Buffer_Limit.low = player.CHROME_SOURCEBUFFER_LIMIT * 0.30;
-        this.elements.UI_Audio_Buffer_Limit.high = player.CHROME_SOURCEBUFFER_LIMIT * 0.70;
+        this.elements.UI_Audio_Buffer.max = player.CHROME_SOURCEBUFFER_LIMIT;
+        this.elements.UI_Audio_Buffer.low = parseInt(player.CHROME_SOURCEBUFFER_LIMIT * 0.30);
+        this.elements.UI_Audio_Buffer.high = parseInt(player.CHROME_SOURCEBUFFER_LIMIT * 0.70);
 
         this.elements.UI_LibrarySearchOnTitle.value = this.services.get("indexes").FILTER.TITLE;
         this.elements.UI_LibrarySearchOnArtist.value = this.services.get("indexes").FILTER.ARTIST;
@@ -154,10 +154,10 @@ export class UI_Controller {
             JSUtils.Log(this.elements.InfoLog, "MEDIA_CONTROLLER_METADATA_LOADED");
         }, this);
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_BUFFERING_AHEAD, function(eventData) {
-            JSUtils.Log(this.elements.InfoLog, `MEDIA_CONTROLLER_BUFFERING_AHEAD (until ${JSUtils.getReadableTime(eventData.duration)})`);
+            JSUtils.Log(this.elements.InfoLog, `MEDIA_CONTROLLER_BUFFERING_AHEAD (${eventData.seconds} seconds)`);
         }, this);
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_TRACK_ENDED, function(eventData) {
-            JSUtils.Log(this.elements.InfoLog, `MEDIA_CONTROLLER_TRACK_ENDED (next track: ${eventData.trackID_next})`)
+            JSUtils.Log(this.elements.InfoLog, `MEDIA_CONTROLLER_TRACK_ENDED (next track: ${eventData.trackID_next ? eventData.trackID_next : "none"})`)
         }, this);
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_PLAYING, function() {
             JSUtils.Log(this.elements.InfoLog, "MEDIA_CONTROLLER_PLAYING");
@@ -195,12 +195,12 @@ export class UI_Controller {
             JSUtils.Log(this.elements.InfoLog, `AUDIO_OBJECT_COMPLETED`);
             this.elements.UI_AudioObject_State.innerText = "COMPLETED";
         }, this);
-        events.manager.subscribe(events.types.AUDIO_OBJECT_DISPOSED, function(){
-            JSUtils.Log(this.elements.InfoLog, `AUDIO_OBJECT_DISPOSED`);
+        events.manager.subscribe(events.types.AUDIO_OBJECT_DISPOSED, function(eventData){
+            JSUtils.Log(this.elements.InfoLog, `AUDIO_OBJECT_DISPOSED (${eventData.object_url} | ${eventData.mediasource_state})`);
             this.elements.UI_AudioObject_State.innerText = "DISPOSED";
         }, this);
         events.manager.subscribe(events.types.AUDIO_OBJECT_BUFFERING, function(eventData){
-            JSUtils.Log(this.elements.InfoLog, `AUDIO_OBJECT_BUFFERING (${eventData.bufferMark})`);
+            JSUtils.Log(this.elements.InfoLog, `AUDIO_OBJECT_BUFFERING (mark: ${eventData.bufferMark})`);
             this.elements.UI_AudioObject_State.innerText = "BUFFERING";
         }, this);
         events.manager.subscribe(events.types.AUDIO_OBJECT_BUFFER_UPDATED, function(data){
@@ -281,6 +281,7 @@ export class UI_Controller {
         /* Index */
         events.manager.subscribe(events.types.INDEX_MANAGER_INDICES_BUILT, function() {
             this.elements.UI_LibrarySearchText.readOnly = false;
+            this.elements.UI_LibrarySearchText.placeholder = "search";
         }, this);
 
         console.log("UI Controller: event handlers attached");
@@ -349,8 +350,6 @@ export class UI_Controller {
 
     _onSelectAlbum(artistCode, albumCode, condition, returnTracksOnly) {
 
-        let ArtistSelectedCount = document.querySelector(`fieldset[data-artistcode='${artistCode}']`).querySelector(this.selectors.LibraryArtistSelectedCount);
-        let AlbumSelectedCount = document.querySelector(`fieldset[data-albumcode='${albumCode}']`).querySelector(this.selectors.LibraryAlbumSelectedCount);
         let AlbumTrackList = document.querySelector(`fieldset[data-albumcode='${albumCode}']`).querySelector(this.selectors.LibraryAlbumTrackListContainer);
         let TrackIDs = [];
 
@@ -366,8 +365,7 @@ export class UI_Controller {
         if (!TrackIDs.length) return TrackIDs;
 
         if (condition) {
-            AlbumSelectedCount.innerText = parseInt(AlbumSelectedCount.innerText) - TrackIDs.length;
-            ArtistSelectedCount.innerText = parseInt(ArtistSelectedCount.innerText) - TrackIDs.length;
+            this._updateSelectionCounts(artistCode, albumCode, -TrackIDs.length);
             
             if (returnTracksOnly)
                 return TrackIDs;
@@ -375,8 +373,7 @@ export class UI_Controller {
                 this.services.get("playlist").remove(TrackIDs);
         }
         else {
-            AlbumSelectedCount.innerText = parseInt(AlbumSelectedCount.innerText) + TrackIDs.length;
-            ArtistSelectedCount.innerText = parseInt(ArtistSelectedCount.innerText) + TrackIDs.length;
+            this._updateSelectionCounts(artistCode, albumCode, TrackIDs.length);
             
             if (returnTracksOnly)
                 return TrackIDs;
@@ -386,21 +383,36 @@ export class UI_Controller {
     }
 
     _onSelectTrack(artistCode, albumCode, trackID, selected) {
-
-        let ArtistSelectedCount = document.querySelector(`fieldset[data-artistcode='${artistCode}']`).querySelector(this.selectors.LibraryArtistSelectedCount);
-        let AlbumSelectedCount = document.querySelector(`fieldset[data-albumcode='${albumCode}']`).querySelector(this.selectors.LibraryAlbumSelectedCount);
         let Playlist = this.services.get("playlist");
 
         if (selected) {
             if (trackID) Playlist.add([trackID]);
-            AlbumSelectedCount.innerText = parseInt(AlbumSelectedCount.innerText) + 1;
-            ArtistSelectedCount.innerText = parseInt(ArtistSelectedCount.innerText) + 1;
+            this._updateSelectionCounts(artistCode, albumCode, 1);
         }
         else {
             if (trackID) Playlist.remove([trackID]);
-            AlbumSelectedCount.innerText = parseInt(AlbumSelectedCount.innerText) - 1;
-            ArtistSelectedCount.innerText = parseInt(ArtistSelectedCount.innerText) - 1;
+            this._updateSelectionCounts(artistCode, albumCode, -1);
         }
+    }
+
+    _updateSelectionCounts(artistCode, albumCode, newCount) {
+        let ArtistSelectedCount = document.querySelector(`fieldset[data-artistcode='${artistCode}']`).querySelector(this.selectors.LibraryArtistSelectedCount);
+        let AlbumSelectedCount = document.querySelector(`fieldset[data-albumcode='${albumCode}']`).querySelector(this.selectors.LibraryAlbumSelectedCount);
+    
+        ArtistSelectedCount.innerText = parseInt(ArtistSelectedCount.innerText) + newCount;
+        AlbumSelectedCount.innerText = parseInt(AlbumSelectedCount.innerText) + newCount;
+    }
+
+    _updateAllSelectionCounts() {
+        let start = performance.now();
+
+        document.querySelectorAll(this.selectors.LibraryAlbumContainer).forEach(albumContainer=> {
+            let selectedTracks = albumContainer.querySelectorAll(`${this.selectors.LibraryAlbumListContainer} input:checked`);
+            if (selectedTracks.length > 0)
+                this._updateSelectionCounts(selectedTracks[0].dataset.artistcode, albumContainer.dataset.albumcode, selectedTracks.length);
+        });
+
+        console.warn(`_updateAllSelectionCounts took ${(performance.now() - start).toFixed(2)} ms`);
     }
 
     _onTracksAddedToPlaylist(eventData) {
@@ -489,7 +501,6 @@ export class UI_Controller {
 
     _createLibraryList(manifest) {
         let start = performance.now();
-        // TODO(thomas): Tracks need to be ordered in each album per their position
 
         if (!Object.keys(manifest).length) {
             this.elements.UI_LibraryList.innerHTML = "<h1>Nothing found</h1>";
@@ -501,6 +512,7 @@ export class UI_Controller {
 
         let output = [];
         let masterTrackIndex = this.services.get("indexes").MasterAudioTrackIndex;
+        let playlistEntries = this.services.get("playlist").getAll();
 
         for (let albumArtistName in manifest) {
             let artistcode = JSUtils.hash(albumArtistName);
@@ -518,7 +530,7 @@ export class UI_Controller {
 
                 <section class="AlbumList" style="display: block;" >
                     ${Object.keys(manifest[albumArtistName]).map(albumName=> {
-                        let albumcode = JSUtils.hash(albumName);
+                        var albumcode = JSUtils.hash(albumName);
 
                         return `<fieldset data-albumcode="${albumcode}" class="Album">
                             <legend class="AlbumName">${albumName} - (<span class="AlbumSelectedCount" >0</span>)</legend>
@@ -536,7 +548,7 @@ export class UI_Controller {
                                     let trackData = masterTrackIndex[trackID];
 
                                     return `<li class="AlbumEntry" >
-                                        <input id="${JSUtils.hash(trackID)}" data-albumcode="${albumcode}" data-artistcode="${artistcode}" data-trackid="${trackID}" type="checkbox">
+                                        <input id="${JSUtils.hash(trackID)}" data-albumcode="${albumcode}" data-artistcode="${artistcode}" data-trackid="${trackID}" ${playlistEntries.includes(trackID) ? "checked" : ""} type="checkbox">
                                         <label for="${JSUtils.hash(trackID)}" class="AudioTrack">${trackData.TrackArtists} - ${trackData.Title}</label>
                                     </li>`
                                 }).join("")}
@@ -548,6 +560,7 @@ export class UI_Controller {
         }
         
         this.elements.UI_LibraryList.innerHTML = output.join("");
+        this._updateAllSelectionCounts();
 
         document.querySelectorAll(this.selectors.AlbumListTrack).forEach(
             spanElement=> spanElement.addEventListener("click", (event)=> this._onSelectTrack(
@@ -566,7 +579,9 @@ export class UI_Controller {
         document.querySelectorAll(this.selectors.LibraryDeSelectAllArtist).forEach(element=> element.addEventListener("click", (event)=> this._onSelectArtist(event.srcElement.dataset.artistcode, true)));
         document.querySelectorAll(this.selectors.LibraryToggleArtist).forEach(element=> element.addEventListener("click", (event)=> this._onToggleArtist(event.srcElement)));
 
-        if (this.elements.UI_LibrarySearchText.value.length >= this.librarySearchTextThreshold) this.elements.UI_SearchLibrary.disabled = false;
+        if (this.elements.UI_LibrarySearchText.value.length >= this.librarySearchTextThreshold)
+            this.elements.UI_SearchLibrary.disabled = false;
+
         console.warn(`_createLibraryList took ${(performance.now() - start).toFixed(2)} ms`);
     }
 

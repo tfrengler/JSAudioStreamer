@@ -26,14 +26,18 @@ export class IndexManager {
     }
 
     load() {
-        var ClientIndex;
+        return new Promise((resolve, reject)=> {
+            var ClientIndex;
     
-        fetch(this.entryPoint + "/ClientIndex.json", {cache: "no-store", mode: "same-origin", method: "GET", redirect: "error", headers: {"Accept": "application/json"}})
-        .then(response=> response.json())
-        .then(jsonResponse=> {
-            
-            ClientIndex = jsonResponse;
-            this._buildIndexes(ClientIndex);
+            fetch(this.entryPoint + "/ClientIndex.json", {cache: "no-store", mode: "same-origin", method: "GET", redirect: "error", headers: {"Accept": "application/json"}})
+            .then(response=> response.json())
+            .then(jsonResponse=> {
+                
+                ClientIndex = jsonResponse;
+                this._buildIndexes(ClientIndex);
+                resolve();
+            })
+            .catch(error=> reject(error));
         })
     }
 

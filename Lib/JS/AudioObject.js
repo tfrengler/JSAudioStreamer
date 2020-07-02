@@ -82,7 +82,7 @@ export class AudioObject {
         });
 
         this.dataStream = new DataStream(streamURL, size, this.events);
-        this.dataStream.open(this.mimeType).then(()=> {
+        this.dataStream.open().then(()=> {
 
             this.objectURL = URL.createObjectURL(this.mediaSource);
             this.state = STATES.READY;
@@ -137,7 +137,7 @@ export class AudioObject {
 
         // NOTE(thomas): Maybe worth making a distinction between whether the audio object has been completed (fully downloaded) and disposed of prematurely?
         this.state = STATES.DISPOSED;
-        this.events.manager.trigger(this.events.types.AUDIO_OBJECT_DISPOSED);
+        this.events.manager.trigger(this.events.types.AUDIO_OBJECT_DISPOSED, {object_url: this.objectURL, mediasource_state: this.mediaSource.readyState});
     }
 
     isReady() {

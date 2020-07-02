@@ -103,8 +103,6 @@ JSUtils.fetchWithTimeout = function(url, timeout, requestOptions=0) {
 		else
 			requestOptions = {signal: abortController.signal};
 
-		console.warn(requestOptions);
-
 		let timer = setTimeout(
 			() => {
 				abortController.abort();

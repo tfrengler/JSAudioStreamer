@@ -20,7 +20,7 @@ export class DataStream {
 
         this.events         = events || null;
 
-        this.chunkSize      = 64 * 1024;
+        this.chunkSize      = 128 * 1024;
         this.readInterval   = 500;
         this.streamURL      = streamURL;
         this.bytesExpected  = bytesExpected;
@@ -45,27 +45,19 @@ export class DataStream {
         return Object.seal(this);
     }
 
-    open(mimeType) { // async
+    open() { // async
         if (this.state !== STATES.INITIAL) 
             return Promise.reject(new Error(`DataStream: Attempt to re-open stream (state: ${this.state.description})`));
 
         return new Promise((resolve, reject)=> {
-
-            JSUtils.fetchWithTimeout(this.streamURL, 3000, {method: "HEAD", mode: "no-cors", headers: {"Accept": mimeType.replace(/"/g, "'")}})
+            // For some dumb-ass reason JS just auto-replaces single quotes inside the mime-type string for m4a with escaped double-quotes when the var is assigned (woot!??)
+            // This fucks up the Accept-header in case of m4a's with the "codec='mp4a.40.2'"-part because fetch doesn't like it (again, no idea why...) and turns Accept into "*/*"
+            JSUtils.fetchWithTimeout(this.streamURL, 3000, {method: "HEAD", mode: "no-cors"})
             .then(response=> {
                 if (response.status !== 200) {
                     this.state = STATES.ERROR;
                     reject(new Error(`DataStream: URL not reachable (${this.streamURL}, response status: ${response.status})`));
                 }
-
-                // nginx won't return Content-Length headers when responses have the "Vary: Accept-Encoding"-header set
-                // This tends to happen with the HEAD-request only, whereas the byte-range requests DO have it
-                // this.bytesExpected = parseInt(response.headers.get("Content-Length"));
-
-                // if (!this.bytesExpected) {
-                //     this.state = STATES.ERROR;
-                //     reject(new Error("DataStream: No 'Content-Length'-header in response when pre-checking stream"));
-                // }
 
                 this.state = STATES.OPEN;
                 this.events.manager.trigger(this.events.types.DATA_STREAM_OPEN);

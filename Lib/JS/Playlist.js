@@ -1,4 +1,4 @@
-class PlayList {
+export class PlayList {
 
     constructor(serviceLocator) {
 
@@ -21,6 +21,7 @@ class PlayList {
         let newList = Array.from(this.list);
         this.events.manager.trigger(this.events.types.PLAYLIST_TRACKS_ADDED, {list: newList, added: trackIDs});
 
+        localStorage.setItem("playlist", newList.join("|"));
         return newList;
     }
 
@@ -36,12 +37,14 @@ class PlayList {
         let newList = Array.from(this.list);
         this.events.manager.trigger(this.events.types.PLAYLIST_TRACKS_REMOVED, {list: newList, removed: trackIDs});
 
+        localStorage.setItem("playlist", newList.join("|"));
         return newList;
     }
 
     clear() {
         this.list = [];
         this.currentIndex = 0;
+        localStorage.setItem("playlist", "");
     }
 
     count() {
@@ -82,5 +85,3 @@ class PlayList {
         return Array.from(this.list);
     }
 }
-
-export {PlayList}

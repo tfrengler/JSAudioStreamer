@@ -45,8 +45,8 @@ export class MediaController {
         this.EDGE_SOURCEBUFFER_LIMIT = 12582912;
 
         this.playCursorLastUpdated = 0;
-        this.desiredBufferHead = 120;
-        this.bufferAheadTriggerTreshold = 30;
+        this.desiredBufferHead = 60;
+        this.bufferAheadTriggerTreshold = 10;
         this.preparingNextTrackThreshold = 5;
         this.failedTracksLimit = 3;
         this.failedTracks = 0;
@@ -143,8 +143,10 @@ export class MediaController {
             this.nextAudioTrack = nextAudioTrack;
             this.failedTracks = 0;
             
-            if (load === true) 
+            if (load === true)  {
+                if (this.currentAudioTrack) this.currentAudioTrack.dispose();
                 this._rotateTrack();
+            }
         })
         .catch(error=> {
             nextAudioTrack.dispose();
@@ -158,9 +160,6 @@ export class MediaController {
 
     // PRIVATE
     _rotateTrack() {
-        // First time through currentTrack will be null
-        if (this.currentAudioTrack) this.currentAudioTrack.dispose();
-
         this.currentAudioTrack = this.nextAudioTrack;
         this.nextAudioTrack = null;
     
@@ -204,6 +203,7 @@ export class MediaController {
                 trackID_next: this.nextAudioTrack ? this.nextAudioTrack.getID() : ""
             }
         );
+        this.currentAudioTrack.dispose()
         if (this.nextAudioTrack) this._rotateTrack();
     }
 
@@ -241,7 +241,7 @@ export class MediaController {
         if (this.audioElement.buffered.length && this.audioElement.buffered.end(0) - this.audioElement.currentTime < this.bufferAheadTriggerTreshold)
         {
             let bufferMark = this.audioElement.buffered.end(0) + this.desiredBufferHead;
-            this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_BUFFERING_AHEAD, {bufferMark: bufferMark});
+            this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_BUFFERING_AHEAD, {seconds: this.desiredBufferHead});
             this.currentAudioTrack.bufferUntil(bufferMark);
         }
     }

@@ -40,6 +40,11 @@ if (window.location.href.indexOf("?DevMode=1") > -1) {
 
 window.onload = () => {
 	UIController.init();
-	Indexes.load();
+
+	Indexes.load().then(()=> {
+		if (localStorage.getItem("playlist"))
+		Playlist.add(localStorage.getItem("playlist").split("|"));
+	});
+
 	console.warn("Everything is initialized and ready to rock and roll");
 }

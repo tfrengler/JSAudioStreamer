@@ -105,7 +105,7 @@
                 </tr>
                 <tr>
                     <th>Audio buffer: </th>
-                    <td><meter id="UI_Audio_Buffer" high="0" low="0" max="0" value="0"></meter> <span id="UI_Audio_Buffer_Limit">0</span></td>
+                    <td><meter id="UI_Audio_Buffer" optimum="0"></meter> <span id="UI_Audio_Buffer_Limit">0</span></td>
                 </tr>
                 <tr>
                     <th>Bytes read: </th>
@@ -207,7 +207,7 @@
                         <label for="LibrarySearchOnGenre">Search on genre</label>
                     </span>
                     <div>
-                        <input readonly type="text" id="LibrarySearchText" placeholder="search" />
+                        <input readonly type="text" id="LibrarySearchText" placeholder="Loading, please wait..." />
                         <input type="button" id="SearchLibrary" value="GO!" disabled />
                     </div>
                 </section>

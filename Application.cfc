@@ -11,6 +11,7 @@
 		<cfset this.root = getDirectoryFromPath( getCurrentTemplatePath() ) />
 		<!--- <cfset application.musicRoot = this.root & "/Data/Music/" /> --->
 		<cfset application.musicRoot = "C:/Thomas/Music/" />
+		<cfset application.m4aRoot = "#this.root#/Data/Music/" />
 		<cfset var backendIndex = fileRead("#this.root#/Data/BackendIndex.json") />
 		<cfset application.backendIndex = deserializeJSON(backendIndex) />
 
