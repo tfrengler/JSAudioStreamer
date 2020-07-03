@@ -40,6 +40,17 @@ export class MediaController {
         this.audioElement.appendChild(document.createElement("source"));
         this.audioElement.appendChild(document.createElement("source"));
 
+        this.audioElement.addEventListener("playing", ()=> {
+            this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_PLAYING);
+        });
+
+        // Replay gain
+        this.audioContext = new AudioContext();
+        let mediaElementSource = this.audioContext.createMediaElementSource(this.audioElement); 
+        this.gainNode = this.audioContext.createGain();
+        mediaElementSource.connect(this.gainNode);
+        this.gainNode.connect(this.audioContext.destination);
+
         this.CHROME_SOURCEBUFFER_LIMIT = 12582912;
         this.FIREFOX_SOURCEBUFFER_LIMIT = 15728640;
         this.EDGE_SOURCEBUFFER_LIMIT = 12582912;
@@ -64,6 +75,8 @@ export class MediaController {
             bufferAheadTriggerTreshold: Immutable,
             failedTracksLimit: Immutable,
             entryPoint: Immutable,
+            audioContext: Immutable,
+            gainNode: Immutable,
             CHROME_SOURCEBUFFER_LIMIT: Immutable,
             FIREFOX_SOURCEBUFFER_LIMIT: Immutable,
             EDGE_SOURCEBUFFER_LIMIT: Immutable
@@ -89,7 +102,8 @@ export class MediaController {
         if (!this.audioElement.paused) return;
 
         this.audioElement.play().then(()=> {
-            this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_PLAYING);
+            this.audioContext.resume();
+            // this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_PLAYING);
         })
         .catch(error=> this._onError(error));
     }
@@ -97,6 +111,7 @@ export class MediaController {
     pause() {
         this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_PAUSED);
         this.audioElement.pause();
+        this.audioContext.suspend();
     }
 
     mute() {
@@ -172,19 +187,30 @@ export class MediaController {
         // Loads triggers the "timeupdate"-event if currentTime is above 0 (if another track has been playing), because it moves the cursor back to 0 again
         this.audioElement.load();
         this.preparingNextTrack = false;
-        this.currentAudioTrack.open().then(()=> this.currentAudioTrack.bufferUntil(this.desiredBufferHead))
+        this.currentAudioTrack.open().then(()=> {
+
+            let trackData = this.services.get("indexes").getTrackData(this.currentAudioTrack.getID());
+            let gainValue = 1.0;
+
+            if (trackData.ReplayGainTrack) gainValue = Math.pow(10, (trackData.ReplayGainTrack / 20));
+            this.gainNode.gain.value = gainValue;
+
+            this.events.manager.trigger(
+                this.events.types.MEDIA_CONTROLLER_GAIN_CHANGED,
+                {value: gainValue, decibels: trackData.ReplayGainTrack}
+            );
+
+            this.currentAudioTrack.bufferUntil(this.desiredBufferHead);
+
+            this.events.manager.trigger(
+                this.events.types.MEDIA_CONTROLLER_TRACK_ROTATED,
+                {trackID: this.currentAudioTrack.getID(), trackData: trackData}
+            );
+        })
         .catch(error=> {
             if (error && error instanceof Error) this.events.trigger(this.events.types.ERROR, error);
             this._prepareNextTrack();
         });
-
-        this.events.manager.trigger(
-            this.events.types.MEDIA_CONTROLLER_TRACK_ROTATED,
-            {
-                trackID: this.currentAudioTrack.getID(),
-                trackData: this.services.get("indexes").MasterAudioTrackIndex[this.currentAudioTrack.getID()]
-            }
-        );
     }
 
     _prepareNextTrack() {

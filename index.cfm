@@ -1,3 +1,5 @@
+<cfinclude template="CheckAuth.cfm" />
+
 <!DOCTYPE html>
 <html lang="en">
 

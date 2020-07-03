@@ -91,8 +91,8 @@ export class UI_Controller {
         this.elements.UI_Playlist.style.maxHeight = window.innerHeight + "px";
         this.elements.UI_Audio_Buffer_Limit.innerText = JSUtils.getReadableBytes(player.CHROME_SOURCEBUFFER_LIMIT);
         this.elements.UI_Audio_Buffer.max = player.CHROME_SOURCEBUFFER_LIMIT;
-        this.elements.UI_Audio_Buffer.low = parseInt(player.CHROME_SOURCEBUFFER_LIMIT * 0.30);
-        this.elements.UI_Audio_Buffer.high = parseInt(player.CHROME_SOURCEBUFFER_LIMIT * 0.70);
+        this.elements.UI_Audio_Buffer.low = parseInt(player.CHROME_SOURCEBUFFER_LIMIT * 0.50);
+        this.elements.UI_Audio_Buffer.high = parseInt(player.CHROME_SOURCEBUFFER_LIMIT * 0.75);
 
         this.elements.UI_LibrarySearchOnTitle.value = this.services.get("indexes").FILTER.TITLE;
         this.elements.UI_LibrarySearchOnArtist.value = this.services.get("indexes").FILTER.ARTIST;
@@ -181,6 +181,9 @@ export class UI_Controller {
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_STALLED, function(){
             JSUtils.Log(this.elements.InfoLog, `MEDIA_CONTROLLER_STALLED`, "WARNING");
             this.elements.UI_Player_State.innerText = "STALLED!";
+        }, this);
+        events.manager.subscribe(events.types.MEDIA_CONTROLLER_GAIN_CHANGED, function(eventData){
+            JSUtils.Log(this.elements.InfoLog, `MEDIA_CONTROLLER_GAIN_CHANGED (${eventData.value} | ${eventData.decibels})`);
         }, this);
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_TRACK_ROTATED, this._onTrackRotated, this);
         // AUDIO_OBJECT
@@ -420,9 +423,12 @@ export class UI_Controller {
 
         eventData.added.forEach(trackID=> {
             let playlistEntry = document.createElement("div");
-            let trackData = this.services.get("indexes").MasterAudioTrackIndex[trackID];
+            let trackData = this.services.get("indexes").getTrackData(trackID);
 
-            if (!trackData) return;
+            if (!trackData) {
+                this._onError(new Error("_onTracksAddedToPlaylist: No track data for ID: " + trackID || "undefined"));
+                return;
+            }
 
             playlistEntry.innerHTML = `<span class="PlaylistEntryCounter">${playlistIndex < 10 ? "0" + playlistIndex : playlistIndex}</span> | ${trackData.TrackArtists.length > 30 ? trackData.TrackArtists.slice(0,30) + "..." : trackData.TrackArtists} - ${trackData.Title.length > 30 ? trackData.Title.slice(0,30) + "..." : trackData.Title} | ${JSUtils.getReadableTime(trackData.Duration)}`;
             playlistEntry.title = trackData.Title;
@@ -484,7 +490,7 @@ export class UI_Controller {
         this.elements.UI_Duration.innerText       = data.Duration || "N/A";
         this.elements.UI_Mimetype.innerText       = data.Mimetype || "N/A";
         this.elements.UI_Size.innerText           = data.Size ? data.Size + " bytes" : "0 bytes";
-        this.elements.UI_ReplayGain.innerText     = data.ReplayGain || "N/A";
+        this.elements.UI_ReplayGain.innerText     = data.ReplayGainTrack || "N/A";
     }
 
     _searchLibrary() {

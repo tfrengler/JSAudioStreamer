@@ -135,7 +135,6 @@ export class AudioObject {
         if (this.mediaSource.readyState === "open")
             this.mediaSource.endOfStream();
 
-        // NOTE(thomas): Maybe worth making a distinction between whether the audio object has been completed (fully downloaded) and disposed of prematurely?
         this.state = STATES.DISPOSED;
         this.events.manager.trigger(this.events.types.AUDIO_OBJECT_DISPOSED, {object_url: this.objectURL, mediasource_state: this.mediaSource.readyState});
     }
@@ -181,6 +180,7 @@ export class AudioObject {
         }
 
         this.dataStream.read().then(result=> {
+            if (this.state === STATES.ERROR || this.state === STATES.COMPLETED || this.state === STATES.DISPOSED) return;
 
             if (result.chunk) this.bufferSource.appendBuffer(result.chunk);
             if (!result.done) return;
