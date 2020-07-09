@@ -23,8 +23,12 @@
     color: white;
 }
 
-.Playing {
-    background-color: tomato !important;
+div.Playing {
+    background-color: tomato;
+}
+
+div.Selected {
+    background-color: green !important;
 }
 
 fieldset {

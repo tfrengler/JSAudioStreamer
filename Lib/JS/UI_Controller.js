@@ -110,6 +110,14 @@ export class UI_Controller {
         let playlist = this.services.get("playlist");
         let events = this.services.get("events");
 
+        document.querySelector("html").addEventListener("keyup", (event)=> {
+            if (event.key !== "Delete") return;
+
+            let selectedPlaylistEntries = document.querySelectorAll("div.Selected");
+            if (selectedPlaylistEntries.length)
+                this.services.get("playlist").remove(Array.from(selectedPlaylistEntries).map((playlistEntry)=> playlistEntry.dataset.trackid));
+        });
+
         // Player interaction handlers
         this.elements.UI_Play.addEventListener("click", player.play.bind(player));
         this.elements.UI_Pause.addEventListener("click", player.pause.bind(player));
@@ -318,7 +326,7 @@ export class UI_Controller {
             element.innerText = "HIDE";
         }
     }
-
+    // Removes or adds all tracks across the library depending on the condition. False means all unselected tracks are added, whereas True means all selected tracks are removed 
     _selectAllTracks(condition) {
         let TrackIDs = [];
 
@@ -372,16 +380,16 @@ export class UI_Controller {
             
             if (returnTracksOnly)
                 return TrackIDs;
-            else
-                this.services.get("playlist").remove(TrackIDs);
+
+            this.services.get("playlist").remove(TrackIDs);
         }
         else {
             this._updateSelectionCounts(artistCode, albumCode, TrackIDs.length);
             
             if (returnTracksOnly)
                 return TrackIDs;
-            else
-                this.services.get("playlist").add(TrackIDs);
+
+            this.services.get("playlist").add(TrackIDs);
         }
     }
 
@@ -436,6 +444,13 @@ export class UI_Controller {
             playlistEntry.classList.add("PlaylistEntry");
 
             playlistEntry.addEventListener("click", (event)=> {
+                if (event.srcElement.classList.contains("Selected"))
+                    event.srcElement.classList.remove("Selected");
+                else
+                    event.srcElement.classList.add("Selected");
+            });
+
+            playlistEntry.addEventListener("dblclick", (event)=> {
                 let currentlyPlaying = document.querySelector(this.selectors.PlaylistCurrentlyPlaying);
                 if (currentlyPlaying) currentlyPlaying.classList.remove("Playing");
 

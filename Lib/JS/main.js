@@ -43,7 +43,7 @@ window.onload = () => {
 
 	Indexes.load().then(()=> {
 		if (localStorage.getItem("playlist"))
-		Playlist.add(localStorage.getItem("playlist").split("|"));
+			Playlist.add(localStorage.getItem("playlist").split("|"));
 	});
 
 	console.warn("Everything is initialized and ready to rock and roll");
