@@ -88,8 +88,8 @@ export class UI_Controller {
         
         let player = this.services.get("player");
 
-        this.elements.UI_Playlist.style.maxHeight = window.innerHeight + "px";
-        this.elements.UI_Audio_Buffer_Limit.innerText = JSUtils.getReadableBytes(player.CHROME_SOURCEBUFFER_LIMIT);
+        this.elements.UI_Playlist.style.maxHeight = (window.innerHeight - 100) + "px";
+        this.elements.UI_Audio_Buffer_Limit.textContent = JSUtils.getReadableBytes(player.CHROME_SOURCEBUFFER_LIMIT);
         this.elements.UI_Audio_Buffer.max = player.CHROME_SOURCEBUFFER_LIMIT;
         this.elements.UI_Audio_Buffer.low = parseInt(player.CHROME_SOURCEBUFFER_LIMIT * 0.50);
         this.elements.UI_Audio_Buffer.high = parseInt(player.CHROME_SOURCEBUFFER_LIMIT * 0.75);
@@ -141,11 +141,11 @@ export class UI_Controller {
         
         this.elements.UI_Volume_Slider.addEventListener("change", (event)=> {
             player.setVolume(event.srcElement.value);
-            this.elements.UI_Volume.innerText = (event.srcElement.value * 100) + "%";
+            this.elements.UI_Volume.textContent = (event.srcElement.value * 100) + "%";
         });
 
         /* Info read-out handlers */
-        player.audioElement.addEventListener("timeupdate", ()=> this.elements.UI_PlayCursor.innerText = JSUtils.getReadableTime(player.audioElement.currentTime));
+        player.audioElement.addEventListener("timeupdate", ()=> this.elements.UI_PlayCursor.textContent = JSUtils.getReadableTime(player.audioElement.currentTime));
 
         events.manager.subscribe(events.types.ERROR, this._onError, this);
         // MEDIA_CONTROLLER
@@ -169,26 +169,26 @@ export class UI_Controller {
         }, this);
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_PLAYING, function() {
             JSUtils.Log(this.elements.InfoLog, "MEDIA_CONTROLLER_PLAYING");
-            this.elements.UI_Player_State.innerText = "PLAYING..."
+            this.elements.UI_Player_State.textContent = "PLAYING..."
         }, this);
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_PAUSED, function() {
             JSUtils.Log(this.elements.InfoLog, "MEDIA_CONTROLLER_PAUSED");
-            this.elements.UI_Player_State.innerText = "PAUSED"
+            this.elements.UI_Player_State.textContent = "PAUSED"
         }, this);
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_MUTED, function(eventData) {
             JSUtils.Log(this.elements.InfoLog, "MEDIA_CONTROLLER_MUTED: " + eventData.muted);
         }, this);
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_DURATION_CHANGED, function(eventData){
             JSUtils.Log(this.elements.InfoLog, `MEDIA_CONTROLLER_DURATION_CHANGED (${eventData.duration})`);
-            this.elements.UI_Player_Duration.innerText = JSUtils.getReadableTime(eventData.duration)
+            this.elements.UI_Player_Duration.textContent = JSUtils.getReadableTime(eventData.duration)
         }, this);
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_WAITING, function(){
             JSUtils.Log(this.elements.InfoLog, `MEDIA_CONTROLLER_WAITING`, "WARNING");
-            this.elements.UI_Player_State.innerText = "WAITING...";
+            this.elements.UI_Player_State.textContent = "WAITING...";
         }, this);
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_STALLED, function(){
             JSUtils.Log(this.elements.InfoLog, `MEDIA_CONTROLLER_STALLED`, "WARNING");
-            this.elements.UI_Player_State.innerText = "STALLED!";
+            this.elements.UI_Player_State.textContent = "STALLED!";
         }, this);
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_GAIN_CHANGED, function(eventData){
             JSUtils.Log(this.elements.InfoLog, `MEDIA_CONTROLLER_GAIN_CHANGED (${eventData.value} | ${eventData.decibels})`);
@@ -196,44 +196,44 @@ export class UI_Controller {
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_TRACK_ROTATED, this._onTrackRotated, this);
         // AUDIO_OBJECT
         events.manager.subscribe(events.types.AUDIO_OBJECT_OPEN, function(){
-            this.elements.UI_AudioObject_State.innerText = "OPEN";
+            this.elements.UI_AudioObject_State.textContent = "OPEN";
         }, this);
         events.manager.subscribe(events.types.AUDIO_OBJECT_READY, function(eventData){
             JSUtils.Log(this.elements.InfoLog, `AUDIO_OBJECT_READY (${eventData.object_url})`);
-            this.elements.UI_AudioObject_State.innerText = "READY";
+            this.elements.UI_AudioObject_State.textContent = "READY";
         }, this);
         events.manager.subscribe(events.types.AUDIO_OBJECT_COMPLETED, function(){
             JSUtils.Log(this.elements.InfoLog, `AUDIO_OBJECT_COMPLETED`);
-            this.elements.UI_AudioObject_State.innerText = "COMPLETED";
+            this.elements.UI_AudioObject_State.textContent = "COMPLETED";
         }, this);
         events.manager.subscribe(events.types.AUDIO_OBJECT_DISPOSED, function(eventData){
             JSUtils.Log(this.elements.InfoLog, `AUDIO_OBJECT_DISPOSED (${eventData.object_url} | ${eventData.mediasource_state})`);
-            this.elements.UI_AudioObject_State.innerText = "DISPOSED";
+            this.elements.UI_AudioObject_State.textContent = "DISPOSED";
         }, this);
         events.manager.subscribe(events.types.AUDIO_OBJECT_BUFFERING, function(eventData){
             JSUtils.Log(this.elements.InfoLog, `AUDIO_OBJECT_BUFFERING (mark: ${eventData.bufferMark})`);
-            this.elements.UI_AudioObject_State.innerText = "BUFFERING";
+            this.elements.UI_AudioObject_State.textContent = "BUFFERING";
         }, this);
         events.manager.subscribe(events.types.AUDIO_OBJECT_BUFFER_UPDATED, function(data){
-            this.elements.UI_Buffered_Until.innerText = JSUtils.getReadableTime(data.buffered_until);
-            this.elements.UI_Buffer_Tail.innerText = JSUtils.getReadableTime(data.buffered_from);
+            this.elements.UI_Buffered_Until.textContent = JSUtils.getReadableTime(data.buffered_until);
+            this.elements.UI_Buffer_Tail.textContent = JSUtils.getReadableTime(data.buffered_from);
         }, this);
         events.manager.subscribe(events.types.AUDIO_OBJECT_BUFFER_MARK_REACHED, function(eventData){
             JSUtils.Log(this.elements.InfoLog, `AUDIO_OBJECT_BUFFER_MARK_REACHED (from ${eventData.from}, until ${eventData.until})`);
         }, this);
         // DATA_STREAM
         events.manager.subscribe(events.types.DATA_STREAM_OPEN, function(){
-            this.elements.UI_Datastream_State.innerText = "OPEN";
+            this.elements.UI_Datastream_State.textContent = "OPEN";
         }, this);
         events.manager.subscribe(events.types.DATA_STREAM_CLOSED, function(){
             JSUtils.Log(this.elements.InfoLog, `DATA_STREAM_CLOSED`);
-            this.elements.UI_Datastream_State.innerText = "CLOSED";
+            this.elements.UI_Datastream_State.textContent = "CLOSED";
         }, this);
         events.manager.subscribe(events.types.DATA_STREAM_READING, function(){
-            this.elements.UI_Datastream_State.innerText = "READING";
+            this.elements.UI_Datastream_State.textContent = "READING";
         }, this);
         events.manager.subscribe(events.types.DATA_STREAM_CHUNK_RECEIVED, function(data){
-            this.elements.UI_Datastream_BytesRead.innerText = JSUtils.getReadableBytes(data.bytes_total);
+            this.elements.UI_Datastream_BytesRead.textContent = JSUtils.getReadableBytes(data.bytes_total);
             this.elements.UI_Datastream_Progress.value = data.bytes_total;
             this.elements.UI_Audio_Buffer.value = data.bytes_total;
         }, this);
@@ -305,11 +305,11 @@ export class UI_Controller {
 
         if (AlbumList.style.display === "block") {
             AlbumList.style.display = "none";
-            element.innerText = "SHOW";
+            element.textContent = "SHOW";
         }
         else {
             AlbumList.style.display = "block";
-            element.innerText = "HIDE";
+            element.textContent = "HIDE";
         }
     }
 
@@ -319,11 +319,11 @@ export class UI_Controller {
 
         if (AlbumList.style.display === "block") {
             AlbumList.style.display = "none";
-            element.innerText = "SHOW";
+            element.textContent = "SHOW";
         }
         else {
             AlbumList.style.display = "block";
-            element.innerText = "HIDE";
+            element.textContent = "HIDE";
         }
     }
     // Removes or adds all tracks across the library depending on the condition. False means all unselected tracks are added, whereas True means all selected tracks are removed 
@@ -409,9 +409,9 @@ export class UI_Controller {
     _updateSelectionCounts(artistCode, albumCode, newCount) {
         let ArtistSelectedCount = document.querySelector(`fieldset[data-artistcode='${artistCode}']`).querySelector(this.selectors.LibraryArtistSelectedCount);
         let AlbumSelectedCount = document.querySelector(`fieldset[data-albumcode='${albumCode}']`).querySelector(this.selectors.LibraryAlbumSelectedCount);
-    
-        ArtistSelectedCount.innerText = parseInt(ArtistSelectedCount.innerText) + newCount;
-        AlbumSelectedCount.innerText = parseInt(AlbumSelectedCount.innerText) + newCount;
+
+        ArtistSelectedCount.textContent = parseInt(ArtistSelectedCount.textContent) + newCount;
+        AlbumSelectedCount.textContent = parseInt(AlbumSelectedCount.textContent) + newCount;
     }
 
     _updateAllSelectionCounts() {
@@ -473,39 +473,39 @@ export class UI_Controller {
         let counter = 1;
 
         document.querySelectorAll(".PlaylistEntryCounter").forEach(counterElement=> {
-            counterElement.innerText = counter < 10 ? "0" + counter : counter;
+            counterElement.textContent = counter < 10 ? "0" + counter : counter;
             counter++;
         });
     }
 
     _resetPlayerUI() {
 
-        this.elements.UI_PlayCursor.innerText               = "00:00";
-        this.elements.UI_Player_Duration.innerText          = "00:00 | 0";
-        this.elements.UI_Buffered_Until.innerText           = "00:00";
-        this.elements.UI_Buffer_Tail.innerText              = "00:00";
-        this.elements.UI_Audio_Buffer.value                 = 0;
-        this.elements.UI_Datastream_Progress.max            = 0;
-        this.elements.UI_Datastream_Progress.value          = 0;
-        this.elements.UI_Datastream_BytesRead.innerText     = "0";
-        this.elements.UI_Datastream_BytesExpected.innerText = "0";
-        this.elements.UI_AudioObject_State.innerText        = "N/A";
-        this.elements.UI_Datastream_State.innerText         = "N/A";
+        this.elements.UI_PlayCursor.textContent               = "00:00";
+        this.elements.UI_Player_Duration.textContent          = "00:00 | 0";
+        this.elements.UI_Buffered_Until.textContent           = "00:00";
+        this.elements.UI_Buffer_Tail.textContent              = "00:00";
+        this.elements.UI_Audio_Buffer.value                   = 0;
+        this.elements.UI_Datastream_Progress.max              = 0;
+        this.elements.UI_Datastream_Progress.value            = 0;
+        this.elements.UI_Datastream_BytesRead.textContent     = "0";
+        this.elements.UI_Datastream_BytesExpected.textContent = "0";
+        this.elements.UI_AudioObject_State.textContent        = "N/A";
+        this.elements.UI_Datastream_State.textContent         = "N/A";
     }
 
     _resetTrackInfoUI(data={}) {
         if (!data) data = {};
 
-        this.elements.UI_TrackID.innerText        = data.Title || "N/A";
-        this.elements.UI_Title.innerText          = data.Album || "N/A";
-        this.elements.UI_Album.innerText          = data.AlbumArtists || "N/A";
-        this.elements.UI_TrackArtists.innerText   = data.TrackArtists || "N/A";
-        this.elements.UI_Year.innerText           = data.Year || "N/A";
-        this.elements.UI_Genres.innerText         = data.Genres || "N/A";
-        this.elements.UI_Duration.innerText       = data.Duration || "N/A";
-        this.elements.UI_Mimetype.innerText       = data.Mimetype || "N/A";
-        this.elements.UI_Size.innerText           = data.Size ? data.Size + " bytes" : "0 bytes";
-        this.elements.UI_ReplayGain.innerText     = data.ReplayGainTrack || "N/A";
+        this.elements.UI_TrackID.textContent        = data.Title || "N/A";
+        this.elements.UI_Title.textContent          = data.Album || "N/A";
+        this.elements.UI_Album.textContent          = data.AlbumArtists || "N/A";
+        this.elements.UI_TrackArtists.textContent   = data.TrackArtists || "N/A";
+        this.elements.UI_Year.textContent           = data.Year || "N/A";
+        this.elements.UI_Genres.textContent         = data.Genres || "N/A";
+        this.elements.UI_Duration.textContent       = data.Duration || "N/A";
+        this.elements.UI_Mimetype.textContent       = data.Mimetype || "N/A";
+        this.elements.UI_Size.textContent           = data.Size ? data.Size + " bytes" : "0 bytes";
+        this.elements.UI_ReplayGain.textContent     = data.ReplayGainTrack || "N/A";
     }
 
     _searchLibrary() {
@@ -521,8 +521,7 @@ export class UI_Controller {
     }
 
     _createLibraryList(manifest) {
-        let start = performance.now();
-
+    
         if (!Object.keys(manifest).length) {
             this.elements.UI_LibraryList.innerHTML = "<h1>Nothing found</h1>";
             return;
@@ -534,6 +533,8 @@ export class UI_Controller {
         let output = [];
         let masterTrackIndex = this.services.get("indexes").MasterAudioTrackIndex;
         let playlistEntries = this.services.get("playlist").getAll();
+
+        let start_output = performance.now();
 
         for (let albumArtistName in manifest) {
             let artistcode = JSUtils.hash(albumArtistName);
@@ -581,7 +582,9 @@ export class UI_Controller {
         }
         
         this.elements.UI_LibraryList.innerHTML = output.join("");
-        this._updateAllSelectionCounts();
+        console.warn(`_createLibraryList: Output took ${(performance.now() - start_output).toFixed(2)} ms`);
+
+        let start_events = performance.now();
 
         document.querySelectorAll(this.selectors.AlbumListTrack).forEach(
             spanElement=> spanElement.addEventListener("click", (event)=> this._onSelectTrack(
@@ -603,7 +606,8 @@ export class UI_Controller {
         if (this.elements.UI_LibrarySearchText.value.length >= this.librarySearchTextThreshold)
             this.elements.UI_SearchLibrary.disabled = false;
 
-        console.warn(`_createLibraryList took ${(performance.now() - start).toFixed(2)} ms`);
+        console.warn(`_createLibraryList: Attaching event handlers took ${(performance.now() - start_events).toFixed(2)} ms`);
+        this._updateAllSelectionCounts();
     }
 
     _onError(error) {
@@ -632,7 +636,7 @@ export class UI_Controller {
         JSUtils.Log(this.elements.InfoLog, `MEDIA_CONTROLLER_TRACK_ROTATED (${eventData.trackID})`);
 
         this._resetPlayerUI();
-        this.elements.UI_Datastream_BytesExpected.innerText = JSUtils.getReadableBytes(eventData.trackData.Size);
+        this.elements.UI_Datastream_BytesExpected.textContent = JSUtils.getReadableBytes(eventData.trackData.Size);
         this.elements.UI_Datastream_Progress.max = eventData.trackData.Size;
         this._resetTrackInfoUI(eventData.trackData);
 
