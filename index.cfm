@@ -14,42 +14,30 @@
         <script type="module" src="Lib/JS/main.js" ></script>
 
         <!--
-        // REPLAY GAIN
-        /*
-            // Create a MediaElementAudioSourceNode
-            // Feed the HTMLMediaElement into it
-            var source = audioCtx.createMediaElementSource(AudioTag);
+            // https://developer.mozilla.org/en-US/docs/Web/API/AudioContext/createMediaElementSource
+            // https://stackoverflow.com/questions/22604500/web-audio-api-working-with-decibels
+            // decibel_level = 20 * Math.log10( gain.value );
+            // gain.value = Math.pow(10, (decibel_level / 20)); This is what we need to convert the values from the tags to the value used by the gain node
 
-            // Create a gain node
-            var gainNode = audioCtx.createGain();
-            gainNode.gain.value = desired_gain;
+            // M4A-files
+            /*
+                These need to be properly fragmented, which most of ours aren't.
+                This can be done using mp4fragment (https://www.bento4.com/documentation/mp4fragment/)
+                which is a commandline-tool like this:
 
-            // connect the AudioBufferSourceNode to the gainNode
-            // and the gainNode to the destination
-            source.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-        */
+                mp4fragment --track "audio" "input_file_name.m4a" "output_file_name.m4a"
 
-        // https://developer.mozilla.org/en-US/docs/Web/API/AudioContext/createMediaElementSource
-        // https://stackoverflow.com/questions/22604500/web-audio-api-working-with-decibels
-        // decibel_level = 20 * Math.log10( gain.value );
-        // gain.value = Math.pow(10, (decibel_level / 20)); This is what we need to convert the values from the tags to the value used by the gain node
+                https://developer.mozilla.org/en-US/docs/Web/API/Media_Source_Extensions_API/Transcoding_assets_for_MSE
+            */
 
-        // M4A-files
-        /*
-            These need to be properly fragmented, which most of ours aren't.
-            This can be done using mp4fragment (https://www.bento4.com/documentation/mp4fragment/)
-            which is a commandline-tool like this:
+            /* BYTES PER SECOND
+                (bitrate * duration) / 8 = size_of_payload
+                bitrate / 8 = bytes_per_second
+            */
 
-            mp4fragment --track "audio" "input_file_name.m4a" "output_file_name.m4a"
-
-            https://developer.mozilla.org/en-US/docs/Web/API/Media_Source_Extensions_API/Transcoding_assets_for_MSE
-        */
-
-        /* BYTES PER SECOND
-            (bitrate * duration) / 8 = size_of_payload
-            bitrate / 8 = bytes_per_second
-        */
+            TODO(thomas):
+            - Creating, modifying, deleting, loading playlists
+            - Re-ordering playlist (drag/drop)
         -->
     </head>
 

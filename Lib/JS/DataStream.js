@@ -52,7 +52,7 @@ export class DataStream {
         return new Promise((resolve, reject)=> {
             // For some dumb-ass reason JS just auto-replaces single quotes inside the mime-type string for m4a with escaped double-quotes when the var is assigned (woot!??)
             // This fucks up the Accept-header in case of m4a's with the "codec='mp4a.40.2'"-part because fetch doesn't like it (again, no idea why...) and turns Accept into "*/*"
-            JSUtils.fetchWithTimeout(this.streamURL, 3000, {method: "HEAD", mode: "no-cors"})
+            JSUtils.fetchWithTimeout(this.streamURL, this.checkTimeout, {method: "HEAD", mode: "no-cors"})
             .then(response=> {
                 if (response.status !== 200) {
                     this.state = STATES.ERROR;

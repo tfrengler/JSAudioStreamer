@@ -56,8 +56,8 @@ export class MediaController {
         this.EDGE_SOURCEBUFFER_LIMIT = 12582912;
 
         this.playCursorLastUpdated = 0;
-        this.desiredBufferHead = 60;
-        this.bufferAheadTriggerTreshold = 10;
+        this.desiredBufferHead = 90;
+        this.bufferAheadTriggerTreshold = 30;
         this.preparingNextTrackThreshold = 5;
         this.failedTracksLimit = 3;
         this.failedTracks = 0;
@@ -262,7 +262,7 @@ export class MediaController {
             this._prepareNextTrack();
         }
 
-        if (this.currentAudioTrack && (this.currentAudioTrack.isComplete() || this.currentAudioTrack.isBusy())) return;
+        if (this.currentAudioTrack && (this.currentAudioTrack.hasErrored() || this.currentAudioTrack.isComplete() || this.currentAudioTrack.isBusy())) return;
         
         if (this.audioElement.buffered.length && this.audioElement.buffered.end(0) - this.audioElement.currentTime < this.bufferAheadTriggerTreshold)
         {

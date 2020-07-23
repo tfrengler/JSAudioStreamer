@@ -150,48 +150,48 @@ export class UI_Controller {
         events.manager.subscribe(events.types.ERROR, this._onError, this);
         // MEDIA_CONTROLLER
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_LOADING_NEXT_TRACK, function(eventData) {
-            JSUtils.Log(this.elements.InfoLog, `MEDIA_CONTROLLER_LOADING_NEXT_TRACK (${eventData.trackID} | ${eventData.rotateImmediately})`);
+            JSUtils.Log(this.elements.InfoLog, `Loading next track (${eventData.trackID} | ${eventData.rotateImmediately})`);
         }, this);
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_PREPARING_NEXT_TRACK, function() {
-            JSUtils.Log(this.elements.InfoLog, "MEDIA_CONTROLLER_PREPARING_NEXT_TRACK");
+            JSUtils.Log(this.elements.InfoLog, "Preparing next track for future playback");
         }, this);
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_TRACK_PLAYABLE, function() {
-            JSUtils.Log(this.elements.InfoLog, "MEDIA_CONTROLLER_TRACK_PLAYABLE");
+            JSUtils.Log(this.elements.InfoLog, "Loaded track is playable");
         }, this);
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_METADATA_LOADED, function() {
-            JSUtils.Log(this.elements.InfoLog, "MEDIA_CONTROLLER_METADATA_LOADED");
+            JSUtils.Log(this.elements.InfoLog, "Metadata loaded");
         }, this);
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_BUFFERING_AHEAD, function(eventData) {
-            JSUtils.Log(this.elements.InfoLog, `MEDIA_CONTROLLER_BUFFERING_AHEAD (${eventData.seconds} seconds)`);
+            JSUtils.Log(this.elements.InfoLog, `Asking audio object to buffer ahead (${eventData.seconds} seconds)`);
         }, this);
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_TRACK_ENDED, function(eventData) {
-            JSUtils.Log(this.elements.InfoLog, `MEDIA_CONTROLLER_TRACK_ENDED (next track: ${eventData.trackID_next ? eventData.trackID_next : "none"})`)
+            JSUtils.Log(this.elements.InfoLog, `Playback for current track ended (next track: ${eventData.trackID_next ? eventData.trackID_next : "none"})`)
         }, this);
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_PLAYING, function() {
-            JSUtils.Log(this.elements.InfoLog, "MEDIA_CONTROLLER_PLAYING");
+            JSUtils.Log(this.elements.InfoLog, "Playback starting");
             this.elements.UI_Player_State.textContent = "PLAYING..."
         }, this);
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_PAUSED, function() {
-            JSUtils.Log(this.elements.InfoLog, "MEDIA_CONTROLLER_PAUSED");
+            JSUtils.Log(this.elements.InfoLog, "Playback paused");
             this.elements.UI_Player_State.textContent = "PAUSED"
         }, this);
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_MUTED, function(eventData) {
-            JSUtils.Log(this.elements.InfoLog, "MEDIA_CONTROLLER_MUTED: " + eventData.muted);
+            JSUtils.Log(this.elements.InfoLog, `Playback ${eventData.muted ? "muted" : "unmuted"}`);
         }, this);
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_DURATION_CHANGED, function(eventData){
-            JSUtils.Log(this.elements.InfoLog, `MEDIA_CONTROLLER_DURATION_CHANGED (${eventData.duration})`);
+            JSUtils.Log(this.elements.InfoLog, `Duration changed for loaded track (${eventData.duration})`);
             this.elements.UI_Player_Duration.textContent = JSUtils.getReadableTime(eventData.duration)
         }, this);
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_WAITING, function(){
-            JSUtils.Log(this.elements.InfoLog, `MEDIA_CONTROLLER_WAITING`, "WARNING");
+            JSUtils.Log(this.elements.InfoLog, `Waiting, possibly due to latency or buffering being behind`, "WARNING");
             this.elements.UI_Player_State.textContent = "WAITING...";
         }, this);
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_STALLED, function(){
-            JSUtils.Log(this.elements.InfoLog, `MEDIA_CONTROLLER_STALLED`, "WARNING");
+            JSUtils.Log(this.elements.InfoLog, `Playback stalled, due to lack of data`, "WARNING");
             this.elements.UI_Player_State.textContent = "STALLED!";
         }, this);
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_GAIN_CHANGED, function(eventData){
-            JSUtils.Log(this.elements.InfoLog, `MEDIA_CONTROLLER_GAIN_CHANGED (${eventData.value} | ${eventData.decibels})`);
+            JSUtils.Log(this.elements.InfoLog, `Gain for loaded track changed (${eventData.value} | ${eventData.decibels})`);
         }, this);
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_TRACK_ROTATED, this._onTrackRotated, this);
         // AUDIO_OBJECT
@@ -199,19 +199,19 @@ export class UI_Controller {
             this.elements.UI_AudioObject_State.textContent = "OPEN";
         }, this);
         events.manager.subscribe(events.types.AUDIO_OBJECT_READY, function(eventData){
-            JSUtils.Log(this.elements.InfoLog, `AUDIO_OBJECT_READY (${eventData.object_url})`);
+            JSUtils.Log(this.elements.InfoLog, `Audio object is initialized and ready (${eventData.object_url})`);
             this.elements.UI_AudioObject_State.textContent = "READY";
         }, this);
         events.manager.subscribe(events.types.AUDIO_OBJECT_COMPLETED, function(){
-            JSUtils.Log(this.elements.InfoLog, `AUDIO_OBJECT_COMPLETED`);
+            JSUtils.Log(this.elements.InfoLog, `Audio object complete (stream read to completion)`);
             this.elements.UI_AudioObject_State.textContent = "COMPLETED";
         }, this);
         events.manager.subscribe(events.types.AUDIO_OBJECT_DISPOSED, function(eventData){
-            JSUtils.Log(this.elements.InfoLog, `AUDIO_OBJECT_DISPOSED (${eventData.object_url} | ${eventData.mediasource_state})`);
+            JSUtils.Log(this.elements.InfoLog, `Audio object disposed, and is no longer usable (${eventData.object_url} | ${eventData.mediasource_state})`);
             this.elements.UI_AudioObject_State.textContent = "DISPOSED";
         }, this);
         events.manager.subscribe(events.types.AUDIO_OBJECT_BUFFERING, function(eventData){
-            JSUtils.Log(this.elements.InfoLog, `AUDIO_OBJECT_BUFFERING (mark: ${eventData.bufferMark})`);
+            JSUtils.Log(this.elements.InfoLog, `Audio object buffering... (mark: ${eventData.bufferMark})`);
             this.elements.UI_AudioObject_State.textContent = "BUFFERING";
         }, this);
         events.manager.subscribe(events.types.AUDIO_OBJECT_BUFFER_UPDATED, function(data){
@@ -219,14 +219,17 @@ export class UI_Controller {
             this.elements.UI_Buffer_Tail.textContent = JSUtils.getReadableTime(data.buffered_from);
         }, this);
         events.manager.subscribe(events.types.AUDIO_OBJECT_BUFFER_MARK_REACHED, function(eventData){
-            JSUtils.Log(this.elements.InfoLog, `AUDIO_OBJECT_BUFFER_MARK_REACHED (from ${eventData.from}, until ${eventData.until})`);
+            JSUtils.Log(this.elements.InfoLog, `Audio object buffering complete (from ${eventData.from}, until ${eventData.until})`);
+        }, this);
+        events.manager.subscribe(events.types.AUDIO_OBJECT_READ_ERROR, function(eventData){
+            JSUtils.Log(this.elements.InfoLog, `Error while reading from datastream (attempt ${eventData.attempts} of ${eventData.maxAttempts})`, "WARNING");
         }, this);
         // DATA_STREAM
         events.manager.subscribe(events.types.DATA_STREAM_OPEN, function(){
             this.elements.UI_Datastream_State.textContent = "OPEN";
         }, this);
         events.manager.subscribe(events.types.DATA_STREAM_CLOSED, function(){
-            JSUtils.Log(this.elements.InfoLog, `DATA_STREAM_CLOSED`);
+            JSUtils.Log(this.elements.InfoLog, `Data stream has been closed`);
             this.elements.UI_Datastream_State.textContent = "CLOSED";
         }, this);
         events.manager.subscribe(events.types.DATA_STREAM_READING, function(){

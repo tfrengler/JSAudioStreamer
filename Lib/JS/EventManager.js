@@ -25,6 +25,7 @@ const EventTypes = Object.freeze({
 	"AUDIO_OBJECT_BUFFERING": Symbol("AUDIO_OBJECT_BUFFERING"), // {bufferMark: number}
 	"AUDIO_OBJECT_BUFFER_UPDATED": Symbol("AUDIO_OBJECT_BUFFER_UPDATED"), // {buffered_until: number, buffered_from: number}
 	"AUDIO_OBJECT_BUFFER_MARK_REACHED": Symbol("AUDIO_OBJECT_BUFFER_MARK_REACHED"), // {from: number, until: until}
+	"AUDIO_OBJECT_READ_ERROR": Symbol("AUDIO_OBJECT_READ_ERROR"), // {attempts: number, maxAttempts: number}
 	"DATA_STREAM_CHUNK_RECEIVED": Symbol("DATA_STREAM_CHUNK_RECEIVED"), // {bytes_read: number, bytes_total: number}
 	"DATA_STREAM_OPEN": Symbol("DATA_STREAM_OPEN"), // void
 	"DATA_STREAM_CLOSED": Symbol("DATA_STREAM_CLOSED"), // void

@@ -30,6 +30,8 @@ export class AudioObject {
         this.duration = duration;
         this.mimeType = mimeType;
         this.bufferMark = 0;
+        this.readErrors = 0;
+        this.readErrorThreshold = 3;
 
         if (this.mimeType === "audio/x-m4a" || this.mimeType === "audio/m4a")
             this.mimeType = 'audio/mp4;codecs="mp4a.40.2"'; // Codec info must be added
@@ -101,7 +103,8 @@ export class AudioObject {
             mediaSource: Immutable,
             dataStream: Immutable,
             duration: Immutable,
-            mimeType: Immutable
+            mimeType: Immutable,
+            readErrorThreshold: Immutable
         });
 
         return Object.seal(this);
@@ -155,6 +158,10 @@ export class AudioObject {
         return this.state == STATES.COMPLETED;
     }
 
+    hasErrored() {
+        return this.state == STATES.ERROR;
+    }
+
     getID() {
         return this.trackID;
     }
@@ -181,6 +188,7 @@ export class AudioObject {
 
         this.dataStream.read().then(result=> {
             if (this.state === STATES.ERROR || this.state === STATES.COMPLETED || this.state === STATES.DISPOSED) return;
+            this.readErrors = 0;
 
             if (result.chunk) this.bufferSource.appendBuffer(result.chunk);
             if (!result.done) return;
@@ -192,8 +200,17 @@ export class AudioObject {
             setTimeout(()=> this.mediaSource.endOfStream(), 500); // A delay because the sourcebuffer might still be updating
         })
         .catch(error=> {
+            if (this.readErrors <= this.readErrorThreshold) {
+                this.readErrors++;
+                this.state = STATES.BUFFERING;
+                
+                this.events.manager.trigger(this.events.types.AUDIO_OBJECT_READ_ERROR, {attempts: this.readErrors, maxAttempts: this.readErrorThreshold});
+                this._buffer();
+                return;
+            }
+
             this.state = STATES.ERROR;
-            this.events.manager.trigger(this.events.types.ERROR, new Error("AudioObject: error while reading from datastream"));
+            this.events.manager.trigger(this.events.types.ERROR, new Error("AudioObject: error while reading from datastream (final)"));
             
             if (error && error instanceof Error)
                 this.events.manager.trigger(this.events.types.ERROR, error);
