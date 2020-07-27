@@ -114,8 +114,18 @@ export class UI_Controller {
             if (event.key !== "Delete") return;
 
             let selectedPlaylistEntries = document.querySelectorAll("div.Selected");
-            if (selectedPlaylistEntries.length)
-                this.services.get("playlist").remove(Array.from(selectedPlaylistEntries).map((playlistEntry)=> playlistEntry.dataset.trackid));
+            if (selectedPlaylistEntries.length) {
+
+                let selectedTrackIDs = Array.from(selectedPlaylistEntries).map((playlistEntry)=> playlistEntry.dataset.trackid);
+                this.services.get("playlist").remove(selectedTrackIDs);
+
+                selectedTrackIDs.forEach(trackID=> {
+                    let trackInputElement = document.querySelector(`li.AlbumEntry > input[data-trackid='${trackID}']`);
+                    if (trackInputElement)
+                        trackInputElement.checked = false;
+                });
+                this._updateAllSelectionCounts();
+            }
         });
 
         // Player interaction handlers
@@ -165,15 +175,19 @@ export class UI_Controller {
             JSUtils.Log(this.elements.InfoLog, `Asking audio object to buffer ahead (${eventData.seconds} seconds)`);
         }, this);
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_TRACK_ENDED, function(eventData) {
-            JSUtils.Log(this.elements.InfoLog, `Playback for current track ended (next track: ${eventData.trackID_next ? eventData.trackID_next : "none"})`)
+            JSUtils.Log(this.elements.InfoLog, `Playback for current track ended (next track: ${eventData.trackID_next ? eventData.trackID_next : "none"})`);
+            if (eventData.trackID_next === "END_OF_PLAYABLE_TRACKS") {
+                JSUtils.Log(this.elements.InfoLog, "No more tracks (playlist empty)");
+                this.elements.UI_Player_State.textContent = "STOPPED"
+            }
         }, this);
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_PLAYING, function() {
             JSUtils.Log(this.elements.InfoLog, "Playback starting");
-            this.elements.UI_Player_State.textContent = "PLAYING..."
+            this.elements.UI_Player_State.textContent = "PLAYING...";
         }, this);
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_PAUSED, function() {
             JSUtils.Log(this.elements.InfoLog, "Playback paused");
-            this.elements.UI_Player_State.textContent = "PAUSED"
+            this.elements.UI_Player_State.textContent = "PAUSED";
         }, this);
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_MUTED, function(eventData) {
             JSUtils.Log(this.elements.InfoLog, `Playback ${eventData.muted ? "muted" : "unmuted"}`);
@@ -419,6 +433,9 @@ export class UI_Controller {
 
     _updateAllSelectionCounts() {
         let start = performance.now();
+        // Wipe all existing counts, setting them to zero, otherwise we risk adding the same count of selected tracks to the already existing count (see _updateSelectionCounts)
+        document.querySelectorAll(".AlbumSelectedCount").forEach(selectionCountSpan=> selectionCountSpan.textContent = "0");
+        document.querySelectorAll(".ArtistSelectedCount").forEach(selectionCountSpan=> selectionCountSpan.textContent = "0");
 
         document.querySelectorAll(this.selectors.LibraryAlbumContainer).forEach(albumContainer=> {
             let selectedTracks = albumContainer.querySelectorAll(`${this.selectors.LibraryAlbumListContainer} input:checked`);
@@ -636,7 +653,7 @@ export class UI_Controller {
     }
 
     _onTrackRotated(eventData) {
-        JSUtils.Log(this.elements.InfoLog, `MEDIA_CONTROLLER_TRACK_ROTATED (${eventData.trackID})`);
+        JSUtils.Log(this.elements.InfoLog, `Rotated next and current audio tracks (next: ${eventData.trackID})`);
 
         this._resetPlayerUI();
         this.elements.UI_Datastream_BytesExpected.textContent = JSUtils.getReadableBytes(eventData.trackData.Size);

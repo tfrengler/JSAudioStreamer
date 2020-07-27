@@ -226,7 +226,7 @@ export class MediaController {
             this.events.types.MEDIA_CONTROLLER_TRACK_ENDED, 
             {
                 trackID_current: this.currentAudioTrack.getID(),
-                trackID_next: this.nextAudioTrack ? this.nextAudioTrack.getID() : ""
+                trackID_next: this.nextAudioTrack ? this.nextAudioTrack.getID() : "END_OF_PLAYABLE_TRACKS"
             }
         );
         this.currentAudioTrack.dispose()
