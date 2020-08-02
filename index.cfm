@@ -49,11 +49,16 @@
 
         <section id="Playlist">
             <div id="PlaylistHeader">
-                <i class="fas fa-stream"></i>
+                <i class="fas fa-stream" style="color: green" ></i>
+                :&nbsp;
+                <i id="ShowHidePlayList" class="fas fa-eye-slash"></i>
                 &nbsp;-&nbsp;
-                <i id="ShowHidePlayList" class="fas fa-eye-slash"></i></span>
+                <i id="ClearPlaylist" class="fas fa-ban"></i>
                 &nbsp;-&nbsp;
-                <i id="ClearPlaylist" class="fas fa-ban"></i></span>
+                <span>
+                    <i class="fas fa-random"></i>
+                    <input id="ShufflePlaylist" type="checkbox" />
+                </span>
             </div>
             <hr/>
             <div id="PlaylistBody" style="display: block;" ></div>

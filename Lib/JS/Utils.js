@@ -193,6 +193,12 @@ JSUtils.waitForEvent = function(emitter, eventName, timeout=0) {
     });
 };
 
+JSUtils.randomRange = function(min, max) {
+	min = Math.ceil(min);
+	max = Math.floor(max);
+	return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
 JSUtils.Log = function(outputHandle, message, type)
 {
 	if (!outputHandle || outputHandle && !(outputHandle instanceof HTMLElement))

@@ -1,13 +1,17 @@
+import { JSUtils } from "./Utils.js";
+
 export class PlayList {
 
     constructor(serviceLocator) {
 
         this.services = serviceLocator || null;
-        this.events = this.services.get("events");
+        this.events = this.services.get("events") || {manager: {trigger() {console.warn("Dummy event trigger")}}, types: {}};
         this.list = [];
         this.currentIndex = 0;
+        this.previouslyPlayed = [];
+        this.randomize = false;
 
-        console.log("Playlist initialized" + `${this.services ? ", with services" : ""}`);
+        console.log("Playlist initialized");
         return Object.seal(this);
     }
 
@@ -53,8 +57,10 @@ export class PlayList {
 
     setCurrent(trackID) {
         let newCurrentIndex = this.list.indexOf(trackID);
-        if (this.currentIndex > -1)
+        if (this.currentIndex > -1) {
             this.currentIndex = newCurrentIndex;
+            localStorage.setItem("currentTrack", trackID);
+        }
     }
 
     getCurrent() {
@@ -66,8 +72,12 @@ export class PlayList {
     }
 
     getNext() {
+        if (this.randomize) return this.getRandom();
+
         let next = this.peekNext();
         this.currentIndex++;
+        localStorage.setItem("currentTrack", this.list[this.currentIndex]);
+
         return next;
     }
 
@@ -76,12 +86,49 @@ export class PlayList {
     }
 
     getPrevious() {
+        if (this.randomize) return this.getRandom();
+
         let previous = this.peekPrevious();
-        if (this.currentIndex > -1) this.currentIndex--;
+        if (this.currentIndex > -1) {
+            this.currentIndex--;
+            localStorage.setItem("currentTrack", this.list[this.currentIndex]);
+        }
+
         return previous;
     }
 
     getAll() {
         return Array.from(this.list);
+    }
+
+    shuffle(enable) {
+        this.randomize = enable;
+        if (enable && this.previouslyPlayed.length) this.previouslyPlayed = [];
+    }
+
+    getRandom() {
+        let nextTrackID = null;
+        let playedRecently = true;
+        let maxIterations = 10;
+        let iteration = 1;
+        let previouslyPlayedLength = (this.list.length < 10 ? 3 : 10);
+
+        while(playedRecently) {
+            if (iteration > maxIterations)
+                break;
+
+            nextTrackID = this.list[ JSUtils.randomRange(0, this.list.length-1) ];
+            playedRecently = this.previouslyPlayed.indexOf(nextTrackID) > -1;
+            
+            iteration++;
+        }
+
+        this.previouslyPlayed.push(nextTrackID);
+
+        if (this.previouslyPlayed.length > previouslyPlayedLength)
+            this.previouslyPlayed.shift();
+
+        localStorage.setItem("currentTrack", nextTrackID);
+        return nextTrackID;
     }
 }

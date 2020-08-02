@@ -1,5 +1,7 @@
 import { JSUtils } from "./Utils.js";
 
+var initializing = true;
+
 export class UI_Controller {
 
     constructor(serviceLocator) {
@@ -85,6 +87,7 @@ export class UI_Controller {
         // Playlist
         this.elements.UI_ShowHidePlaylist           = document.getElementById("ShowHidePlayList");
         this.elements.UI_ClearPlaylist              = document.getElementById("ClearPlaylist");
+        this.elements.UI_ShufflePlaylist            = document.getElementById("ShufflePlaylist");
         
         let player = this.services.get("player");
 
@@ -303,6 +306,10 @@ export class UI_Controller {
                 playlist.clear();
         });
 
+        this.elements.UI_ShufflePlaylist.addEventListener("change", (event)=> {
+            this.services.get("playlist").shuffle(event.srcElement.checked);
+        });
+
         events.manager.subscribe(events.types.PLAYLIST_TRACKS_ADDED, this._onTracksAddedToPlaylist.bind(this));
         events.manager.subscribe(events.types.PLAYLIST_TRACKS_REMOVED, this._onTracksRemovedFromPlaylist.bind(this));
 
@@ -482,6 +489,14 @@ export class UI_Controller {
             this.elements.UI_Playlist.appendChild(playlistEntry);
             playlistIndex++;
         });
+
+        if (!initializing) return;
+
+        if (localStorage.getItem("currentTrack")) {
+            let playlistEntry = document.querySelector(`.PlaylistEntry[data-trackid='${localStorage.getItem("currentTrack")}']`);
+            if (playlistEntry) playlistEntry.classList.add("Selected");
+            initializing = false;
+        }
     }
 
     _onTracksRemovedFromPlaylist(eventData) {
@@ -535,6 +550,8 @@ export class UI_Controller {
                         | (this.elements.UI_LibrarySearchOnTitle.checked === true ? parseInt(this.elements.UI_LibrarySearchOnTitle.value) : 0)
                         | (this.elements.UI_LibrarySearchOnArtist.checked === true ? parseInt(this.elements.UI_LibrarySearchOnArtist.value) : 0)
                         | (this.elements.UI_LibrarySearchOnGenre.checked === true ? parseInt(this.elements.UI_LibrarySearchOnGenre.value) : 0);
+
+        if (filter === 0) return;
 
         let searchString = this.elements.UI_LibrarySearchText.value;
         this._createLibraryList( this.services.get("indexes").getCollection(filter, searchString) );
