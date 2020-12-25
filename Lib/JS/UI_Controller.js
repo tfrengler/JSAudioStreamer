@@ -531,9 +531,9 @@ export class UI_Controller {
     _resetTrackInfoUI(data={}) {
         if (!data) data = {};
 
-        this.elements.UI_TrackID.textContent        = data.Title || "N/A";
-        this.elements.UI_Title.textContent          = data.Album || "N/A";
-        this.elements.UI_Album.textContent          = data.AlbumArtists || "N/A";
+        this.elements.UI_TrackID.textContent        = data.TrackID || "N/A";
+        this.elements.UI_Title.textContent          = data.Title || "N/A";
+        this.elements.UI_Album.textContent          = data.Album || "N/A";
         this.elements.UI_TrackArtists.textContent   = data.TrackArtists || "N/A";
         this.elements.UI_Year.textContent           = data.Year || "N/A";
         this.elements.UI_Genres.textContent         = data.Genres || "N/A";
