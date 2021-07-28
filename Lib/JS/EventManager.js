@@ -5,9 +5,6 @@ const EventTypes = Object.freeze({
 	"INDEX_MANAGER_INDICES_BUILT": Symbol("INDEX_MANAGER_INDICES_BUILT"), // {tracks_parsed: number}
 	"MEDIA_CONTROLLER_PLAYING": Symbol("MEDIA_CONTROLLER_PLAYING"), // void
 	"MEDIA_CONTROLLER_PAUSED": Symbol("MEDIA_CONTROLLER_PAUSED"), // void
-	"MEDIA_CONTROLLER_MUTED": Symbol("MEDIA_CONTROLLER_MUTED"), // {muted: boolean}
-	"MEDIA_CONTROLLER_VOLUME_CHANGE": Symbol("MEDIA_CONTROLLER_VOLUME_CHANGE"), // {new_volume: number}
-	"MEDIA_CONTROLLER_DURATION_CHANGED": Symbol("MEDIA_CONTROLLER_DURATION_CHANGED"), // {duration: number}
 	"MEDIA_CONTROLLER_TRACK_ROTATED": Symbol("MEDIA_CONTROLLER_TRACK_ROTATED"), // {trackID: string, trackData: {}}
 	"MEDIA_CONTROLLER_TRACK_ENDED": Symbol("MEDIA_CONTROLLER_TRACK_ENDED"), // {trackID_current: string, trackID_next: string}
     "MEDIA_CONTROLLER_LOADING_NEXT_TRACK": Symbol("MEDIA_CONTROLLER_LOADING_NEXT_TRACK"), // {trackID: string, rotateImmediately: boolean}
@@ -16,20 +13,11 @@ const EventTypes = Object.freeze({
 	"MEDIA_CONTROLLER_METADATA_LOADED": Symbol("MEDIA_CONTROLLER_METADATA_LOADED"), // void
 	"MEDIA_CONTROLLER_WAITING": Symbol("MEDIA_CONTROLLER_WAITING"), // void
     "MEDIA_CONTROLLER_STALLED": Symbol("MEDIA_CONTROLLER_STALLED"), // void
-	"MEDIA_CONTROLLER_BUFFERING_AHEAD": Symbol("MEDIA_CONTROLLER_BUFFERING_AHEAD"), // {bufferMark: number}
 	"MEDIA_CONTROLLER_GAIN_CHANGED": Symbol("MEDIA_CONTROLLER_GAIN_CHANGED"), // {value: number, decibels: number}
-	"AUDIO_OBJECT_READY": Symbol("AUDIO_OBJECT_READY"), // {object_url: string}
-	"AUDIO_OBJECT_OPEN": Symbol("AUDIO_OBJECT_OPEN"), // void
-	"AUDIO_OBJECT_COMPLETED": Symbol("AUDIO_OBJECT_COMPLETED"), // void
-	"AUDIO_OBJECT_DISPOSED": Symbol("AUDIO_OBJECT_DISPOSED"), // {object_url: string, mediasource_state: string});
-	"AUDIO_OBJECT_BUFFERING": Symbol("AUDIO_OBJECT_BUFFERING"), // {bufferMark: number}
-	"AUDIO_OBJECT_BUFFER_UPDATED": Symbol("AUDIO_OBJECT_BUFFER_UPDATED"), // {buffered_until: number, buffered_from: number}
-	"AUDIO_OBJECT_BUFFER_MARK_REACHED": Symbol("AUDIO_OBJECT_BUFFER_MARK_REACHED"), // {from: number, until: until}
-	"AUDIO_OBJECT_READ_ERROR": Symbol("AUDIO_OBJECT_READ_ERROR"), // {attempts: number, maxAttempts: number}
-	"DATA_STREAM_CHUNK_RECEIVED": Symbol("DATA_STREAM_CHUNK_RECEIVED"), // {bytes_read: number, bytes_total: number}
-	"DATA_STREAM_OPEN": Symbol("DATA_STREAM_OPEN"), // void
-	"DATA_STREAM_CLOSED": Symbol("DATA_STREAM_CLOSED"), // void
-	"DATA_STREAM_READING": Symbol("DATA_STREAM_READING"), // void
+	"MEDIA_CONTROLLER_DURATION_CHANGED": Symbol("MEDIA_CONTROLLER_DURATION_CHANGED"), // {duration: number}
+	"MEDIA_CONTROLLER_BUFFER_UPDATED": Symbol("MEDIA_CONTROLLER_BUFFER_UPDATED"), // {ranges: object[] = {from: number, until: number}}
+	"MEDIA_CONTROLLER_BUFFERING_ENDED": Symbol("MEDIA_CONTROLLER_BUFFERING_ENDED"),
+	"MEDIA_CONTROLLER_SEEKING": Symbol("MEDIA_CONTROLLER_SEEKING"),
 	"PLAYLIST_TRACKS_ADDED": Symbol("PLAYLIST_TRACKS_ADDED"), // {list: [], added: []}
 	"PLAYLIST_TRACKS_REMOVED": Symbol("PLAYLIST_TRACKS_REMOVED"), // {list: [], removed: []}
 	"ERROR": Symbol("ERROR") // new Error()
@@ -80,7 +68,7 @@ class EventManager {
 			console.error(`Event type is not a Symbol: ${eventType.constructor.name}`);
 			return false;
 		}
-        
+
         if (!this.subscribers[eventType]) {
 			console.error(`No such event type exists: ${eventType.description}`);
 			return false;

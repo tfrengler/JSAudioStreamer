@@ -33,7 +33,7 @@ export class UI_Controller {
     init() {
 
         this.elements.InfoLog                       = document.getElementById("LogOutput");
-        
+
         // Library
         this.elements.UI_LibraryList                = document.getElementById("LibraryList");
         this.elements.UI_LibrarySearchText          = document.getElementById("LibrarySearchText");
@@ -44,7 +44,7 @@ export class UI_Controller {
         this.elements.UI_LibrarySearchOnGenre       = document.getElementById("LibrarySearchOnGenre");
         this.elements.UI_ResetLibrary               = document.getElementById("ResetLibrary");
         this.elements.UI_SelectAllInLibrary         = document.getElementById("SelectAllInLibrary");
-        
+
         // Misc
         this.elements.UI_LibraryControlForm         = document.querySelector("*[name='LibraryControlForm']");
         this.elements.UI_AlbumList                  = document.getElementById("AlbumList");
@@ -53,24 +53,7 @@ export class UI_Controller {
 
         // Player info
         this.elements.UI_Previous                   = document.getElementById("UI_Previous"); // button
-        this.elements.UI_Play                       = document.getElementById("UI_Play"); // button
-        this.elements.UI_Pause                      = document.getElementById("UI_Pause"); // button
-        this.elements.UI_Mute                       = document.getElementById("UI_Mute"); // button
         this.elements.UI_Next                       = document.getElementById("UI_Next"); // button
-        this.elements.UI_Volume                     = document.getElementById("UI_Volume"); // span
-        this.elements.UI_Volume_Slider              = document.getElementById("UI_Volume_Slider"); // input range
-        this.elements.UI_Player_State               = document.getElementById("UI_Player_State"); // span
-        this.elements.UI_PlayCursor                 = document.getElementById("UI_PlayCursor"); // td
-        this.elements.UI_Player_Duration            = document.getElementById("UI_Player_Duration"); // td
-        this.elements.UI_Buffered_Until             = document.getElementById("UI_Buffered_Until"); // td
-        this.elements.UI_Buffer_Tail                = document.getElementById("UI_Buffer_Tail"); // td
-        this.elements.UI_Audio_Buffer               = document.getElementById("UI_Audio_Buffer"); // meter
-        this.elements.UI_Audio_Buffer_Limit         = document.getElementById("UI_Audio_Buffer_Limit"); // span
-        this.elements.UI_Datastream_Progress        = document.getElementById("UI_Datastream_Progress"); // progress
-        this.elements.UI_Datastream_BytesRead       = document.getElementById("UI_Datastream_BytesRead"); // span
-        this.elements.UI_Datastream_BytesExpected   = document.getElementById("UI_Datastream_BytesExpected"); // td
-        this.elements.UI_AudioObject_State          = document.getElementById("UI_AudioObject_State"); // td
-        this.elements.UI_Datastream_State           = document.getElementById("UI_Datastream_State"); // td
 
         // Track Info
         this.elements.UI_TrackID                    = document.getElementById("UI_TrackID"); // td
@@ -88,19 +71,14 @@ export class UI_Controller {
         this.elements.UI_ShowHidePlaylist           = document.getElementById("ShowHidePlayList");
         this.elements.UI_ClearPlaylist              = document.getElementById("ClearPlaylist");
         this.elements.UI_ShufflePlaylist            = document.getElementById("ShufflePlaylist");
-        
-        let player = this.services.get("player");
 
-        this.elements.UI_Playlist.style.maxHeight = (window.innerHeight - 100) + "px";
-        this.elements.UI_Audio_Buffer_Limit.textContent = JSUtils.getReadableBytes(player.CHROME_SOURCEBUFFER_LIMIT);
-        this.elements.UI_Audio_Buffer.max = player.CHROME_SOURCEBUFFER_LIMIT;
-        this.elements.UI_Audio_Buffer.low = parseInt(player.CHROME_SOURCEBUFFER_LIMIT * 0.50);
-        this.elements.UI_Audio_Buffer.high = parseInt(player.CHROME_SOURCEBUFFER_LIMIT * 0.75);
+        this.elements.UI_Playlist.style.maxHeight   = (window.innerHeight - 100) + "px";
+        window.addEventListener("resize", () => this.elements.UI_Playlist.style.maxHeight   = (window.innerHeight - 100) + "px");
 
-        this.elements.UI_LibrarySearchOnTitle.value = this.services.get("indexes").FILTER.TITLE;
-        this.elements.UI_LibrarySearchOnArtist.value = this.services.get("indexes").FILTER.ARTIST;
-        this.elements.UI_LibrarySearchOnAlbum.value = this.services.get("indexes").FILTER.ALBUM;
-        this.elements.UI_LibrarySearchOnGenre.value = this.services.get("indexes").FILTER.GENRE;
+        this.elements.UI_LibrarySearchOnTitle.value     = this.services.get("indexes").FILTER.TITLE;
+        this.elements.UI_LibrarySearchOnArtist.value    = this.services.get("indexes").FILTER.ARTIST;
+        this.elements.UI_LibrarySearchOnAlbum.value     = this.services.get("indexes").FILTER.ALBUM;
+        this.elements.UI_LibrarySearchOnGenre.value     = this.services.get("indexes").FILTER.GENRE;
 
         Object.freeze(this.elements);
         this._initEventHandlers();
@@ -122,7 +100,7 @@ export class UI_Controller {
                 let selectedTrackIDs = Array.from(selectedPlaylistEntries).map((playlistEntry)=> playlistEntry.dataset.trackid);
                 this.services.get("playlist").remove(selectedTrackIDs);
 
-                selectedTrackIDs.forEach(trackID=> {
+                selectedTrackIDs.forEach(trackID => {
                     let trackInputElement = document.querySelector(`li.AlbumEntry > input[data-trackid='${trackID}']`);
                     if (trackInputElement)
                         trackInputElement.checked = false;
@@ -132,8 +110,6 @@ export class UI_Controller {
         });
 
         // Player interaction handlers
-        this.elements.UI_Play.addEventListener("click", player.play.bind(player));
-        this.elements.UI_Pause.addEventListener("click", player.pause.bind(player));
 
         this.elements.UI_Previous.addEventListener("click", ()=> {
             let previousTrack = playlist.getPrevious();
@@ -146,37 +122,37 @@ export class UI_Controller {
             if (nextTrack)
                 player.loadNextTrack(nextTrack, true);
         });
-        
-        this.elements.UI_Mute.addEventListener("click", ()=> {
-            player.mute();
-            this.elements.UI_Mute.innerHTML = `${player.audioElement.muted ? "<b>UN-MUTE</b>" : "MUTE"}`;
-        });
-        
-        this.elements.UI_Volume_Slider.addEventListener("change", (event)=> {
-            player.setVolume(event.srcElement.value);
-            this.elements.UI_Volume.textContent = (event.srcElement.value * 100) + "%";
-        });
-
-        /* Info read-out handlers */
-        player.audioElement.addEventListener("timeupdate", ()=> this.elements.UI_PlayCursor.textContent = JSUtils.getReadableTime(player.audioElement.currentTime));
 
         events.manager.subscribe(events.types.ERROR, this._onError, this);
+
         // MEDIA_CONTROLLER
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_LOADING_NEXT_TRACK, function(eventData) {
-            JSUtils.Log(this.elements.InfoLog, `Loading next track (${eventData.trackID} | ${eventData.rotateImmediately})`);
+            JSUtils.Log(this.elements.InfoLog, `Loading next track (${eventData.trackID} | Rotate immediately? ${eventData.rotateImmediately})`);
         }, this);
+
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_PREPARING_NEXT_TRACK, function() {
             JSUtils.Log(this.elements.InfoLog, "Preparing next track for future playback");
         }, this);
+
+        events.manager.subscribe(events.types.MEDIA_CONTROLLER_BUFFERING_ENDED, function() {
+            JSUtils.Log(this.elements.InfoLog, "We think that current track can be played until the end without buffering");
+        }, this);
+
+        events.manager.subscribe(events.types.MEDIA_CONTROLLER_BUFFER_UPDATED, function(eventData)
+        {
+            let Output = [];
+            eventData.ranges.forEach(timeRange=> Output.push(`From: ${timeRange.from}, Until: ${timeRange.until}`));
+            JSUtils.Log(this.elements.InfoLog, `Audio buffer updated (${Output.join(' | ')})`);
+        }, this);
+
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_TRACK_PLAYABLE, function() {
             JSUtils.Log(this.elements.InfoLog, "Loaded track is playable");
         }, this);
+
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_METADATA_LOADED, function() {
             JSUtils.Log(this.elements.InfoLog, "Metadata loaded");
         }, this);
-        events.manager.subscribe(events.types.MEDIA_CONTROLLER_BUFFERING_AHEAD, function(eventData) {
-            JSUtils.Log(this.elements.InfoLog, `Asking audio object to buffer ahead (${eventData.seconds} seconds)`);
-        }, this);
+
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_TRACK_ENDED, function(eventData) {
             JSUtils.Log(this.elements.InfoLog, `Playback for current track ended (next track: ${eventData.trackID_next ? eventData.trackID_next : "none"})`);
             if (eventData.trackID_next === "END_OF_PLAYABLE_TRACKS") {
@@ -184,79 +160,34 @@ export class UI_Controller {
                 this.elements.UI_Player_State.textContent = "STOPPED"
             }
         }, this);
+
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_PLAYING, function() {
             JSUtils.Log(this.elements.InfoLog, "Playback starting");
-            this.elements.UI_Player_State.textContent = "PLAYING...";
         }, this);
+
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_PAUSED, function() {
             JSUtils.Log(this.elements.InfoLog, "Playback paused");
-            this.elements.UI_Player_State.textContent = "PAUSED";
         }, this);
-        events.manager.subscribe(events.types.MEDIA_CONTROLLER_MUTED, function(eventData) {
-            JSUtils.Log(this.elements.InfoLog, `Playback ${eventData.muted ? "muted" : "unmuted"}`);
-        }, this);
-        events.manager.subscribe(events.types.MEDIA_CONTROLLER_DURATION_CHANGED, function(eventData){
-            JSUtils.Log(this.elements.InfoLog, `Duration changed for loaded track (${eventData.duration})`);
-            this.elements.UI_Player_Duration.textContent = JSUtils.getReadableTime(eventData.duration)
-        }, this);
+
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_WAITING, function(){
             JSUtils.Log(this.elements.InfoLog, `Waiting, possibly due to latency or buffering being behind`, "WARNING");
             this.elements.UI_Player_State.textContent = "WAITING...";
         }, this);
+
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_STALLED, function(){
             JSUtils.Log(this.elements.InfoLog, `Playback stalled, due to lack of data`, "WARNING");
             this.elements.UI_Player_State.textContent = "STALLED!";
         }, this);
+
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_GAIN_CHANGED, function(eventData){
             JSUtils.Log(this.elements.InfoLog, `Gain for loaded track changed (${eventData.value} | ${eventData.decibels})`);
         }, this);
+
+        events.manager.subscribe(events.types.MEDIA_CONTROLLER_DURATION_CHANGED, function(eventData){
+            JSUtils.Log(this.elements.InfoLog, `Duration for current track changed (${eventData.duration})`);
+        }, this);
+
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_TRACK_ROTATED, this._onTrackRotated, this);
-        // AUDIO_OBJECT
-        events.manager.subscribe(events.types.AUDIO_OBJECT_OPEN, function(){
-            this.elements.UI_AudioObject_State.textContent = "OPEN";
-        }, this);
-        events.manager.subscribe(events.types.AUDIO_OBJECT_READY, function(eventData){
-            JSUtils.Log(this.elements.InfoLog, `Audio object is initialized and ready (${eventData.object_url})`);
-            this.elements.UI_AudioObject_State.textContent = "READY";
-        }, this);
-        events.manager.subscribe(events.types.AUDIO_OBJECT_COMPLETED, function(){
-            JSUtils.Log(this.elements.InfoLog, `Audio object complete (stream read to completion)`);
-            this.elements.UI_AudioObject_State.textContent = "COMPLETED";
-        }, this);
-        events.manager.subscribe(events.types.AUDIO_OBJECT_DISPOSED, function(eventData){
-            JSUtils.Log(this.elements.InfoLog, `Audio object disposed, and is no longer usable (${eventData.object_url} | ${eventData.mediasource_state})`);
-            this.elements.UI_AudioObject_State.textContent = "DISPOSED";
-        }, this);
-        events.manager.subscribe(events.types.AUDIO_OBJECT_BUFFERING, function(eventData){
-            JSUtils.Log(this.elements.InfoLog, `Audio object buffering... (mark: ${eventData.bufferMark})`);
-            this.elements.UI_AudioObject_State.textContent = "BUFFERING";
-        }, this);
-        events.manager.subscribe(events.types.AUDIO_OBJECT_BUFFER_UPDATED, function(data){
-            this.elements.UI_Buffered_Until.textContent = JSUtils.getReadableTime(data.buffered_until);
-            this.elements.UI_Buffer_Tail.textContent = JSUtils.getReadableTime(data.buffered_from);
-        }, this);
-        events.manager.subscribe(events.types.AUDIO_OBJECT_BUFFER_MARK_REACHED, function(eventData){
-            JSUtils.Log(this.elements.InfoLog, `Audio object buffering complete (from ${eventData.from}, until ${eventData.until})`);
-        }, this);
-        events.manager.subscribe(events.types.AUDIO_OBJECT_READ_ERROR, function(eventData){
-            JSUtils.Log(this.elements.InfoLog, `Error while reading from datastream (attempt ${eventData.attempts} of ${eventData.maxAttempts})`, "WARNING");
-        }, this);
-        // DATA_STREAM
-        events.manager.subscribe(events.types.DATA_STREAM_OPEN, function(){
-            this.elements.UI_Datastream_State.textContent = "OPEN";
-        }, this);
-        events.manager.subscribe(events.types.DATA_STREAM_CLOSED, function(){
-            JSUtils.Log(this.elements.InfoLog, `Data stream has been closed`);
-            this.elements.UI_Datastream_State.textContent = "CLOSED";
-        }, this);
-        events.manager.subscribe(events.types.DATA_STREAM_READING, function(){
-            this.elements.UI_Datastream_State.textContent = "READING";
-        }, this);
-        events.manager.subscribe(events.types.DATA_STREAM_CHUNK_RECEIVED, function(data){
-            this.elements.UI_Datastream_BytesRead.textContent = JSUtils.getReadableBytes(data.bytes_total);
-            this.elements.UI_Datastream_Progress.value = data.bytes_total;
-            this.elements.UI_Audio_Buffer.value = data.bytes_total;
-        }, this);
 
         // Library controls
         this.elements.UI_LibrarySearchText.addEventListener("input", (event)=> {
@@ -299,9 +230,9 @@ export class UI_Controller {
         this.elements.UI_ClearPlaylist.addEventListener("click", ()=> {
             this._selectAllTracks(true);
             Array.from(this.elements.UI_Playlist.children).forEach(element=> element.remove());
-            
+
             let playlist = this.services.get("playlist");
-            
+
             if (playlist.count() > 0)
                 playlist.clear();
         });
@@ -350,7 +281,7 @@ export class UI_Controller {
             element.textContent = "HIDE";
         }
     }
-    // Removes or adds all tracks across the library depending on the condition. False means all unselected tracks are added, whereas True means all selected tracks are removed 
+    // Removes or adds all tracks across the library depending on the condition. False means all unselected tracks are added, whereas True means all selected tracks are removed
     _selectAllTracks(condition) {
         let TrackIDs = [];
 
@@ -393,7 +324,7 @@ export class UI_Controller {
             if (element.children[0].checked !== condition) return;
 
             element.children[0].checked = !condition;
-            if (element.children[0].dataset.trackid) 
+            if (element.children[0].dataset.trackid)
                 TrackIDs.push(element.children[0].dataset.trackid);
         });
 
@@ -401,7 +332,7 @@ export class UI_Controller {
 
         if (condition) {
             this._updateSelectionCounts(artistCode, albumCode, -TrackIDs.length);
-            
+
             if (returnTracksOnly)
                 return TrackIDs;
 
@@ -409,7 +340,7 @@ export class UI_Controller {
         }
         else {
             this._updateSelectionCounts(artistCode, albumCode, TrackIDs.length);
-            
+
             if (returnTracksOnly)
                 return TrackIDs;
 
@@ -471,19 +402,19 @@ export class UI_Controller {
             playlistEntry.classList.add("PlaylistEntry");
 
             playlistEntry.addEventListener("click", (event)=> {
-                if (event.srcElement.classList.contains("Selected"))
-                    event.srcElement.classList.remove("Selected");
+                if (event.target.classList.contains("Selected"))
+                    event.target.classList.remove("Selected");
                 else
-                    event.srcElement.classList.add("Selected");
+                    event.target.classList.add("Selected");
             });
 
             playlistEntry.addEventListener("dblclick", (event)=> {
                 let currentlyPlaying = document.querySelector(this.selectors.PlaylistCurrentlyPlaying);
                 if (currentlyPlaying) currentlyPlaying.classList.remove("Playing");
 
-                this.services.get("playlist").setCurrent(event.srcElement.dataset.trackid);
-                this.services.get("player").loadNextTrack(event.srcElement.dataset.trackid, true);
-                event.srcElement.classList.add("Playing");
+                this.services.get("playlist").setCurrent(event.target.dataset.trackid);
+                this.services.get("player").loadNextTrack(event.target.dataset.trackid, true);
+                event.target.classList.add("Playing");
             });
 
             this.elements.UI_Playlist.appendChild(playlistEntry);
@@ -531,7 +462,8 @@ export class UI_Controller {
     _resetTrackInfoUI(data={}) {
         if (!data) data = {};
 
-        this.elements.UI_TrackID.textContent        = data.TrackID || "N/A";
+        // TrackID is a separate key which isn't included in the data-param
+        // this.elements.UI_TrackID.textContent        = data.trackID || "N/A";
         this.elements.UI_Title.textContent          = data.Title || "N/A";
         this.elements.UI_Album.textContent          = data.Album || "N/A";
         this.elements.UI_TrackArtists.textContent   = data.TrackArtists || "N/A";
@@ -539,7 +471,7 @@ export class UI_Controller {
         this.elements.UI_Genres.textContent         = data.Genres || "N/A";
         this.elements.UI_Duration.textContent       = data.Duration || "N/A";
         this.elements.UI_Mimetype.textContent       = data.Mimetype || "N/A";
-        this.elements.UI_Size.textContent           = data.Size ? data.Size + " bytes" : "0 bytes";
+        this.elements.UI_Size.textContent           = data.Size ? data.Size + " bytes" + " | " + JSUtils.getReadableBytes(data.Size) : "0 bytes";
         this.elements.UI_ReplayGain.textContent     = data.ReplayGainTrack || "N/A";
     }
 
@@ -558,12 +490,12 @@ export class UI_Controller {
     }
 
     _createLibraryList(manifest) {
-    
+
         if (!Object.keys(manifest).length) {
             this.elements.UI_LibraryList.innerHTML = "<h1>Nothing found</h1>";
             return;
         }
-        
+
         this.elements.UI_SearchLibrary.disabled = true;
         this.elements.UI_LibraryList.innerHTML = "<h1>Loading...</h1>";
 
@@ -617,7 +549,7 @@ export class UI_Controller {
                 </section>
             </fieldset>`);
         }
-        
+
         this.elements.UI_LibraryList.innerHTML = output.join("");
         console.warn(`_createLibraryList: Output took ${(performance.now() - start_output).toFixed(2)} ms`);
 
@@ -625,20 +557,20 @@ export class UI_Controller {
 
         document.querySelectorAll(this.selectors.AlbumListTrack).forEach(
             spanElement=> spanElement.addEventListener("click", (event)=> this._onSelectTrack(
-                event.srcElement.dataset.artistcode,
-                event.srcElement.dataset.albumcode,
-                event.srcElement.dataset.trackid,
-                event.srcElement.checked
+                event.target.dataset.artistcode,
+                event.target.dataset.albumcode,
+                event.target.dataset.trackid,
+                event.target.checked
             ))
         );
 
-        document.querySelectorAll(this.selectors.LibrarySelectAllAlbum).forEach(element=> element.addEventListener("click", (event)=> this._onSelectAlbum(event.srcElement.dataset.artistcode, event.srcElement.dataset.albumcode, false, false)));
-        document.querySelectorAll(this.selectors.LibraryDeSelectAllAlbum).forEach(element=> element.addEventListener("click", (event)=> this._onSelectAlbum(event.srcElement.dataset.artistcode, event.srcElement.dataset.albumcode, true, false)));
-        document.querySelectorAll(this.selectors.LibraryToggleAlbum).forEach(element=> element.addEventListener("click", (event)=> this._onToggleAlbum(event.srcElement)));
+        document.querySelectorAll(this.selectors.LibrarySelectAllAlbum).forEach(element=> element.addEventListener("click", (event)=> this._onSelectAlbum(event.target.dataset.artistcode, event.srcElement.dataset.albumcode, false, false)));
+        document.querySelectorAll(this.selectors.LibraryDeSelectAllAlbum).forEach(element=> element.addEventListener("click", (event)=> this._onSelectAlbum(event.target.dataset.artistcode, event.srcElement.dataset.albumcode, true, false)));
+        document.querySelectorAll(this.selectors.LibraryToggleAlbum).forEach(element=> element.addEventListener("click", (event)=> this._onToggleAlbum(event.target)));
 
-        document.querySelectorAll(this.selectors.LibrarySelectAllArtist).forEach(element=> element.addEventListener("click", (event)=> this._onSelectArtist(event.srcElement.dataset.artistcode, false)));
-        document.querySelectorAll(this.selectors.LibraryDeSelectAllArtist).forEach(element=> element.addEventListener("click", (event)=> this._onSelectArtist(event.srcElement.dataset.artistcode, true)));
-        document.querySelectorAll(this.selectors.LibraryToggleArtist).forEach(element=> element.addEventListener("click", (event)=> this._onToggleArtist(event.srcElement)));
+        document.querySelectorAll(this.selectors.LibrarySelectAllArtist).forEach(element=> element.addEventListener("click", (event)=> this._onSelectArtist(event.target.dataset.artistcode, false)));
+        document.querySelectorAll(this.selectors.LibraryDeSelectAllArtist).forEach(element=> element.addEventListener("click", (event)=> this._onSelectArtist(event.target.dataset.artistcode, true)));
+        document.querySelectorAll(this.selectors.LibraryToggleArtist).forEach(element=> element.addEventListener("click", (event)=> this._onToggleArtist(event.target)));
 
         if (this.elements.UI_LibrarySearchText.value.length >= this.librarySearchTextThreshold)
             this.elements.UI_SearchLibrary.disabled = false;
@@ -672,9 +604,6 @@ export class UI_Controller {
     _onTrackRotated(eventData) {
         JSUtils.Log(this.elements.InfoLog, `Rotated next and current audio tracks (next: ${eventData.trackID})`);
 
-        this._resetPlayerUI();
-        this.elements.UI_Datastream_BytesExpected.textContent = JSUtils.getReadableBytes(eventData.trackData.Size);
-        this.elements.UI_Datastream_Progress.max = eventData.trackData.Size;
         this._resetTrackInfoUI(eventData.trackData);
 
         let currentlyPlaying = document.querySelector(this.selectors.PlaylistCurrentlyPlaying);

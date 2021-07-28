@@ -1,4 +1,4 @@
-<cfinclude template="CheckAuth.cfm" />
+<!-- <cfinclude template="CheckAuth.cfm" /> -->
 
 <!DOCTYPE html>
 <html lang="en">
@@ -42,11 +42,6 @@
     </head>
 
     <body>
-        <cfif structKeyExists(URL, "DevMode") AND URL.DevMode EQ 1 >
-            <cfdump var=#structCount(application.backendIndex)# label="BackendIndex" />
-            <hr/>
-        </cfif>
-
         <section id="Playlist">
             <div id="PlaylistHeader">
                 <i class="fas fa-stream" style="color: green" ></i>
@@ -64,23 +59,27 @@
             <div id="PlaylistBody" style="display: block;" ></div>
         </section>
 
-        <button id="UI_Previous">PREVIOUS</button>
-        <span>&nbsp;|&nbsp;</span>
-        <button id="UI_Play">PLAY</button>
-        <button id="UI_Pause">PAUSE</button>
-        <button id="UI_Mute">MUTE</button>
-        <span>&nbsp;|&nbsp;</span>
-        <button id="UI_Next">NEXT</button>
+        <div><audio id="Player" controls ></audio></div>
 
-        <p>
+        <div>
+            <button id="UI_Previous">PREVIOUS</button>
+            <span>&nbsp;|&nbsp;</span>
+            <!-- <button id="UI_Play">PLAY</button> -->
+            <!-- <button id="UI_Pause">PAUSE</button> -->
+            <!-- <button id="UI_Mute">MUTE</button> -->
+            <!-- <span>&nbsp;|&nbsp;</span> -->
+            <button id="UI_Next">NEXT</button>
+        </div>
+
+        <!-- <p>
             <span id="UI_Volume" >100%</span>
             <span>|</span>
             <input id="UI_Volume_Slider" type="range" min="0.1" max="1.0" step="0.1" value="1.0" />
             <span>|</span>
-            <span id="UI_Player_State" >N/A</span> <!-- playing, muted, paused -->
-        </p>
+            <span id="UI_Player_State" >N/A</span> <!- playing, muted, paused ->
+        </p> -->
 
-        <table>
+        <!-- <table>
             <tbody>
                 <tr>
                     <th>Play cursor: </th>
@@ -119,14 +118,14 @@
                     <td id="UI_Datastream_State">N/A</td>
                 </tr>
             </tbody>
-        </table>
+        </table> -->
 
         <table>
             <tbody>
-                <tr>
+                <!-- <tr>
                     <th>TrackID: </th>
                     <td id="UI_TrackID">N/A</td>
-                </tr>
+                </tr> -->
                 <tr>
                     <th>Title: </th>
                     <td id="UI_Title">N/A</td>

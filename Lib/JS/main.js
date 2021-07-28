@@ -20,7 +20,7 @@ Services.provide("indexes", Indexes);
 const Playlist = new PlayList(Services);
 Services.provide("playlist", Playlist);
 
-const Player = new MediaController("GetAudioTrack.cfm?ID=", Services);
+const Player = new MediaController("http://127.0.0.1:7001/tracks/getAsBinary?TrackID=", Services);
 Services.provide("player", Player);
 
 const UIController = new UI_Controller(Services);
