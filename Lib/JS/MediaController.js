@@ -1,4 +1,5 @@
 import { AudioObject } from "./AudioObject.js";
+import { JSUtils } from "./Utils.js";
 
 /*
     To get audio working via streaming:
@@ -32,7 +33,7 @@ export class MediaController {
     constructor(entryPoint, serviceLocator) {
         // Properties
         this.services = serviceLocator || null;
-        this.events = serviceLocator.get("events");
+        this.events = serviceLocator.get("events") || Object.freeze({manager: {trigger() {console.warn("MEDIA CONTROLLER EVENTS: No event service provided")}}, types: {}});
 
         this.audioElement = document.querySelector("#Player");
         this.audioElement.autoplay = false;
@@ -41,10 +42,6 @@ export class MediaController {
         this.audioElement.appendChild(document.createElement("source"));
         this.audioElement.appendChild(document.createElement("source"));
 
-        this.audioElement.addEventListener("playing", ()=> {
-            this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_PLAYING);
-        });
-
         // Replay gain
         this.audioContext = new AudioContext();
         let mediaElementSource = this.audioContext.createMediaElementSource(this.audioElement);
@@ -52,11 +49,14 @@ export class MediaController {
         mediaElementSource.connect(this.gainNode);
         this.gainNode.connect(this.audioContext.destination);
 
+        // This thing is here to deal with the fact that playing media cannot be initiated programmatically
+        // until the user has interacted with the page. It'll never be flipped back to true until the page is reloaded
         this.beginState = true;
         this.playCursorLastUpdated = 0;
         this.preparingNextTrackThreshold = 5;
         this.failedTracksLimit = 3;
         this.failedTracks = 0;
+        this.unreachableURLRetryInterval = 10000;
         this.entryPoint = entryPoint;
 
         this.preparingNextTrack = false;
@@ -80,12 +80,17 @@ export class MediaController {
         this.audioElement.addEventListener('loadeddata', this._onAudioDataLoaded.bind(this));
         this.audioElement.addEventListener('progress', this._onAudioDataLoaded.bind(this));
 
-        this.audioElement.addEventListener('canplaythrough', ()=> {
-            this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_BUFFERING_ENDED);
-        });
+        // this.audioElement.addEventListener('canplaythrough', ()=> {
+        //     this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_BUFFERING_ENDED);
+        // });
+
         this.audioElement.addEventListener('seeking', (event)=> {
             console.warn(event);
             this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_SEEKING);
+        });
+
+        this.audioElement.addEventListener("playing", ()=> {
+            this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_PLAYING);
         });
 
         console.log("MediaController initialized" + `${this.services ? ", with services" : ""}`);
@@ -96,12 +101,15 @@ export class MediaController {
     play() {
         this.beginState = false;
 
-        if (!this.currentAudioTrack) return;
-        if (!this.audioElement.paused) return;
+        // if (!this.currentAudioTrack) return;
+        // if (!this.audioElement.paused) return;
 
         this.audioElement.play().then(()=> {
-            this.audioContext.resume();
-            this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_PLAYING);
+
+            if (this.audioContext.state !== "running")
+                this.audioContext.resume();
+
+            // this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_PLAYING);
         })
         .catch(error=> this._onError(error));
     }
@@ -109,14 +117,35 @@ export class MediaController {
     pause() {
         this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_PAUSED);
         this.audioElement.pause();
-        // this.audioContext.suspend();
+        this.audioContext.suspend();
     }
 
     // This is the one called from outside when clicking on a track from the playlist
-    loadNextTrack(trackID, load)
+    async loadNextTrack(trackID, load)
     {
         if (this.failedTracks >= this.failedTracksLimit) {
             this.events.manager.trigger(this.events.types.ERROR, new Error(`MediaController: ${this.failedTracksLimit} tracks failed to load in a row, aborting further attempts`));
+            return;
+        }
+        
+        const NextTrackURL = this.entryPoint + trackID;
+
+        var StreamReachable = await JSUtils.fetchWithTimeout(NextTrackURL, 3000, {method: "HEAD"})
+        .then(response=> {
+            if (response.status !== 200)
+            {
+                this.failedTracks++;
+                return false;
+            }
+
+            return true;
+        });
+
+        if (!StreamReachable)
+        {
+            this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_STREAM_URL_UNREACHABLE, {streamURL: NextTrackURL, retry: this.unreachableURLRetryInterval});
+            setTimeout(()=> this.loadNextTrack(trackID, load), this.unreachableURLRetryInterval);
+
             return;
         }
 
@@ -131,14 +160,12 @@ export class MediaController {
 
         this.nextAudioTrack = new AudioObject(
             trackID,
-            this.entryPoint + trackID,
             TrackData.Mimetype,
             TrackData.Size,
             TrackData.Duration,
-            this.events
         );
 
-        this.nextSourceElement.src = this.nextAudioTrack.getSource();
+        this.nextSourceElement.src = NextTrackURL;
 
         if (load)
             this._rotateTrack();

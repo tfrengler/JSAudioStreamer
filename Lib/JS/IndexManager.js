@@ -3,15 +3,20 @@ import { JSUtils } from "./Utils.js";
 export class IndexManager {
 
     constructor(entryPoint, serviceLocator) {
-        this.events = serviceLocator.get("events");
+        this.events = serviceLocator.get("events") || Object.freeze({manager: {trigger() {console.warn("INDEX MANAGER EVENTS: No event service provided")}}, types: {}});
         this.entryPoint = entryPoint;
         this.MasterAudioTrackIndex = null;
 
         this.FILTER = Object.freeze({
-            TITLE: 1,
-            ALBUM: 2,
-            ARTIST: 4,
-            GENRE: 8
+            "TITLE": 1,
+            "ALBUM": 2,
+            "ARTIST": 4,
+            "GENRE": 8,
+            // Reverse lookup
+            1: "TITLE",
+            2: "ALBUM",
+            4: "ARTIST",
+            8: "GENRE"
         });
         
         this.Indexes = Object.freeze({

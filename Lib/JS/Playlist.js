@@ -5,7 +5,7 @@ export class PlayList {
     constructor(serviceLocator) {
 
         this.services = serviceLocator || null;
-        this.events = this.services.get("events") || {manager: {trigger() {console.warn("Dummy event trigger")}}, types: {}};
+        this.events = this.services.get("events") || Object.freeze({manager: {trigger() {console.warn("PLAYLIST EVENTS: No event service provided")}}, types: {}});
         this.list = [];
         this.currentIndex = 0;
         this.previouslyPlayed = [];
@@ -17,7 +17,7 @@ export class PlayList {
 
     add(trackIDs) {
         if (!(trackIDs instanceof Array)) return Array.from(this.list);
-        console.warn("Adding to playlist: " + trackIDs.length);
+        if (window.DevMode) console.warn("Adding to playlist: " + trackIDs.length);
 
         trackIDs.forEach(trackID=> {
             if (this.list.indexOf(trackID) === -1) this.list.push(trackID);
@@ -31,7 +31,7 @@ export class PlayList {
 
     remove(trackIDs) {
         if (!(trackIDs instanceof Array)) return Array.from(this.list);
-        console.warn("Removing from playlist: " + trackIDs.length);
+        if (window.DevMode) console.warn("Removing from playlist: " + trackIDs.length);
 
         let current = this.getCurrent();
         this.list = this.list.filter(trackID=> trackIDs.indexOf(trackID) === -1);

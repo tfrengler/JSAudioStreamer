@@ -54,6 +54,7 @@ export class UI_Controller {
         // Player info
         this.elements.UI_Previous                   = document.getElementById("UI_Previous"); // button
         this.elements.UI_Next                       = document.getElementById("UI_Next"); // button
+        this.elements.UI_Retry                      = document.getElementById("UI_Retry"); // button
 
         // Track Info
         this.elements.UI_TrackID                    = document.getElementById("UI_TrackID"); // td
@@ -123,6 +124,12 @@ export class UI_Controller {
                 player.loadNextTrack(nextTrack, true);
         });
 
+        this.elements.UI_Retry.addEventListener("click", ()=> {
+            player.failedTracks = 0;
+            if (player.currentAudioTrack)
+                player.loadNextTrack(player.currentAudioTrack.getID(), true);
+        });
+
         events.manager.subscribe(events.types.ERROR, this._onError, this);
 
         // MEDIA_CONTROLLER
@@ -134,14 +141,15 @@ export class UI_Controller {
             JSUtils.Log(this.elements.InfoLog, "Preparing next track for future playback");
         }, this);
 
-        events.manager.subscribe(events.types.MEDIA_CONTROLLER_BUFFERING_ENDED, function() {
-            JSUtils.Log(this.elements.InfoLog, "We think that current track can be played until the end without buffering");
-        }, this);
+        // events.manager.subscribe(events.types.MEDIA_CONTROLLER_BUFFERING_ENDED, function() {
+        //     JSUtils.Log(this.elements.InfoLog, "We think that current track can be played until the end without buffering");
+        // }, this);
 
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_BUFFER_UPDATED, function(eventData)
         {
             let Output = [];
             eventData.ranges.forEach(timeRange=> Output.push(`From: ${timeRange.from}, Until: ${timeRange.until}`));
+
             JSUtils.Log(this.elements.InfoLog, `Audio buffer updated (${Output.join(' | ')})`);
         }, this);
 
@@ -150,19 +158,19 @@ export class UI_Controller {
         }, this);
 
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_METADATA_LOADED, function() {
-            JSUtils.Log(this.elements.InfoLog, "Metadata loaded");
+            JSUtils.Log(this.elements.InfoLog, "Metadata loaded for current track");
         }, this);
 
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_TRACK_ENDED, function(eventData) {
-            JSUtils.Log(this.elements.InfoLog, `Playback for current track ended (next track: ${eventData.trackID_next ? eventData.trackID_next : "none"})`);
+            JSUtils.Log(this.elements.InfoLog, `Playback for current track ended (NEXT: ${eventData.trackID_next ?? "none"})`);
+
             if (eventData.trackID_next === "END_OF_PLAYABLE_TRACKS") {
                 JSUtils.Log(this.elements.InfoLog, "No more tracks (playlist empty)");
-                this.elements.UI_Player_State.textContent = "STOPPED"
             }
         }, this);
 
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_PLAYING, function() {
-            JSUtils.Log(this.elements.InfoLog, "Playback starting");
+            JSUtils.Log(this.elements.InfoLog, "Playback started");
         }, this);
 
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_PAUSED, function() {
@@ -171,20 +179,34 @@ export class UI_Controller {
 
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_WAITING, function(){
             JSUtils.Log(this.elements.InfoLog, `Waiting, possibly due to latency or buffering being behind`, "WARNING");
-            this.elements.UI_Player_State.textContent = "WAITING...";
         }, this);
 
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_STALLED, function(){
             JSUtils.Log(this.elements.InfoLog, `Playback stalled, due to lack of data`, "WARNING");
-            this.elements.UI_Player_State.textContent = "STALLED!";
         }, this);
 
+         events.manager.subscribe(events.types.MEDIA_CONTROLLER_STREAM_URL_UNREACHABLE, function(eventData){
+            JSUtils.Log(this.elements.InfoLog, `Next track not reachable, retrying in ${eventData.retry / 1000} seconds... (${eventData.streamURL})`, "WARNING");
+        }, this);            
+
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_GAIN_CHANGED, function(eventData){
-            JSUtils.Log(this.elements.InfoLog, `Gain for loaded track changed (${eventData.value} | ${eventData.decibels})`);
+            JSUtils.Log(this.elements.InfoLog, `Gain for loaded track changed (VALUE: ${eventData.value} | DECIBELS: ${eventData.decibels})`);
         }, this);
 
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_DURATION_CHANGED, function(eventData){
             JSUtils.Log(this.elements.InfoLog, `Duration for current track changed (${eventData.duration})`);
+        }, this);
+
+        events.manager.subscribe(events.types.MEDIA_CONTROLLER_STREAM_ABORTED, function(){
+            JSUtils.Log(this.elements.InfoLog, "Stream aborted for current track before fully loaded", "WARNING");
+        }, this);
+
+        events.manager.subscribe(events.types.MEDIA_CONTROLLER_SEEKING, function(){
+            JSUtils.Log(this.elements.InfoLog, "Seeking to new playback mark in stream...");
+        }, this);
+
+        events.manager.subscribe(events.types.MEDIA_CONTROLLER_SEEK_ENDED, function(){
+            JSUtils.Log(this.elements.InfoLog, "Seeking done");
         }, this);
 
         events.manager.subscribe(events.types.MEDIA_CONTROLLER_TRACK_ROTATED, this._onTrackRotated, this);
@@ -381,7 +403,7 @@ export class UI_Controller {
                 this._updateSelectionCounts(selectedTracks[0].dataset.artistcode, albumContainer.dataset.albumcode, selectedTracks.length);
         });
 
-        console.warn(`_updateAllSelectionCounts took ${(performance.now() - start).toFixed(2)} ms`);
+        if (window.DevMode) console.warn(`_updateAllSelectionCounts took ${(performance.now() - start).toFixed(2)} ms`);
     }
 
     _onTracksAddedToPlaylist(eventData) {
@@ -551,7 +573,7 @@ export class UI_Controller {
         }
 
         this.elements.UI_LibraryList.innerHTML = output.join("");
-        console.warn(`_createLibraryList: Output took ${(performance.now() - start_output).toFixed(2)} ms`);
+        if (window.DevMode) console.warn(`_createLibraryList: Output took ${(performance.now() - start_output).toFixed(2)} ms`);
 
         let start_events = performance.now();
 
@@ -575,7 +597,7 @@ export class UI_Controller {
         if (this.elements.UI_LibrarySearchText.value.length >= this.librarySearchTextThreshold)
             this.elements.UI_SearchLibrary.disabled = false;
 
-        console.warn(`_createLibraryList: Attaching event handlers took ${(performance.now() - start_events).toFixed(2)} ms`);
+        if (window.DevMode) console.warn(`_createLibraryList: Attaching event handlers took ${(performance.now() - start_events).toFixed(2)} ms`);
         this._updateAllSelectionCounts();
     }
 
