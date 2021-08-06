@@ -69,6 +69,7 @@ export class MediaController {
         this.audioElement.addEventListener("loadedmetadata", ()=> this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_METADATA_LOADED));
         this.audioElement.addEventListener("waiting", ()=> this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_WAITING));
         this.audioElement.addEventListener("stalled", ()=> this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_STALLED));
+        this.audioElement.addEventListener("abort", ()=> this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_STREAM_ABORTED));
         this.audioElement.addEventListener("ended", this._onTrackEnded.bind(this));
         this.audioElement.addEventListener("canplay", this._onTrackPlayable.bind(this));
         this.audioElement.addEventListener("error", this._onError.bind(this));
@@ -100,16 +101,12 @@ export class MediaController {
     // PUBLIC
     play() {
         this.beginState = false;
-
-        // if (!this.currentAudioTrack) return;
-        // if (!this.audioElement.paused) return;
-
         this.audioElement.play().then(()=> {
 
             if (this.audioContext.state !== "running")
                 this.audioContext.resume();
 
-            // this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_PLAYING);
+            this.events.manager.trigger(this.events.types.MEDIA_CONTROLLER_PLAYING);
         })
         .catch(error=> this._onError(error));
     }
@@ -127,10 +124,10 @@ export class MediaController {
             this.events.manager.trigger(this.events.types.ERROR, new Error(`MediaController: ${this.failedTracksLimit} tracks failed to load in a row, aborting further attempts`));
             return;
         }
-        
+
         const NextTrackURL = this.entryPoint + trackID;
 
-        var StreamReachable = await JSUtils.fetchWithTimeout(NextTrackURL, 3000, {method: "HEAD"})
+        var StreamReachable = await JSUtils.fetchWithTimeout(NextTrackURL, 3000, {method: "HEAD", cors: "no-cors"})
         .then(response=> {
             if (response.status !== 200)
             {

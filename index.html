@@ -42,22 +42,28 @@
     </head>
 
     <body>
-        <section id="Playlist">
-            <div id="PlaylistHeader">
-                <i class="fas fa-stream" style="color: green" ></i>
-                :&nbsp;
-                <i id="ShowHidePlayList" class="fas fa-eye-slash"></i>
-                &nbsp;-&nbsp;
-                <i id="ClearPlaylist" class="fas fa-ban"></i>
-                &nbsp;-&nbsp;
-                <span>
-                    <i class="fas fa-random"></i>
-                    <input id="ShufflePlaylist" type="checkbox" />
-                </span>
-            </div>
-            <hr/>
-            <div id="PlaylistBody" style="display: block;" ></div>
-        </section>
+        <dialog id="DialogPlaylist">
+
+            <section id="Playlist">
+                <div id="PlaylistHeader">
+                    <i class="fas fa-stream" style="color: green" ></i>
+                    :&nbsp;
+                    <i id="ShowHidePlayList" class="fas fa-eye-slash"></i>
+                    &nbsp;-&nbsp;
+                    <i id="ClearPlaylist" class="fas fa-ban"></i>
+                    &nbsp;-&nbsp;
+                    <span>
+                        <i class="fas fa-random"></i>
+                        <input id="ShufflePlaylist" type="checkbox" />
+                    </span>
+                    &nbsp;-&nbsp;
+                    <button id="CloseDialogPlaylist" >CLOSE</button>
+                </div>
+                <hr/>
+                <div id="PlaylistBody" style="display: block;" ></div>
+            </section>
+
+        </dialog>
 
         <div><audio id="Player" controls ></audio></div>
 
@@ -69,61 +75,8 @@
             <button id="UI_Retry">RETRY</button>
         </div>
 
-        <!-- <p>
-            <span id="UI_Volume" >100%</span>
-            <span>|</span>
-            <input id="UI_Volume_Slider" type="range" min="0.1" max="1.0" step="0.1" value="1.0" />
-            <span>|</span>
-            <span id="UI_Player_State" >N/A</span> <!- playing, muted, paused ->
-        </p> -->
-
-        <!-- <table>
-            <tbody>
-                <tr>
-                    <th>Play cursor: </th>
-                    <td id="UI_PlayCursor">00:00</td>
-                </tr>
-                <tr>
-                    <th>Duration: </th>
-                    <td id="UI_Player_Duration">0 | 0</td>
-                </tr>
-                <tr>
-                    <th>Buffered until: </th>
-                    <td id="UI_Buffered_Until">00:00</td>
-                </tr>
-                <tr>
-                    <th>Buffered from: </th>
-                    <td id="UI_Buffer_Tail">00:00</td>
-                </tr>
-                <tr>
-                    <th>Audio buffer: </th>
-                    <td><meter id="UI_Audio_Buffer" optimum="0"></meter> <span id="UI_Audio_Buffer_Limit">0</span></td>
-                </tr>
-                <tr>
-                    <th>Bytes read: </th>
-                    <td><progress id="UI_Datastream_Progress" max="0" value="0"></progress> <span id="UI_Datastream_BytesRead">0</span></td>
-                </tr>
-                <tr>
-                    <th>Bytes expected: </th>
-                    <td id="UI_Datastream_BytesExpected">0</td>
-                </tr>
-                <tr>
-                    <th>AudioObject state: </th>
-                    <td id="UI_AudioObject_State">N/A</td>
-                </tr>
-                <tr>
-                    <th>Datastream state: </th>
-                    <td id="UI_Datastream_State">N/A</td>
-                </tr>
-            </tbody>
-        </table> -->
-
         <table>
             <tbody>
-                <!-- <tr>
-                    <th>TrackID: </th>
-                    <td id="UI_TrackID">N/A</td>
-                </tr> -->
                 <tr>
                     <th>Title: </th>
                     <td id="UI_Title">N/A</td>
@@ -132,10 +85,6 @@
                     <th>Album: </th>
                     <td id="UI_Album">N/A</td>
                 </tr>
-                <!-- <tr>
-                    <th>AlbumArtists</th>
-                    <td>N/A</td>
-                </tr> -->
                 <tr>
                     <th>TrackArtists: </th>
                     <td id="UI_TrackArtists">N/A</td>
@@ -148,24 +97,16 @@
                     <th>Genres: </th>
                     <td id="UI_Genres">N/A</td>
                 </tr>
-                <tr>
-                    <th>Duration: </th>
-                    <td id="UI_Duration">N/A</td>
-                </tr>
-                <tr>
-                    <th>Mimetype: </th>
-                    <td id="UI_Mimetype">N/A</td>
-                </tr>
-                <tr>
-                    <th>Size: </th>
-                    <td id="UI_Size">N/A</td>
-                </tr>
-                <tr>
-                    <th>ReplayGain: </th>
-                    <td id="UI_ReplayGain">N/A</td>
-                </tr>
             </tbody>
         </table>
+
+        <div>
+            <button id="ShowPlaylist">PLAYLIST</button>
+            <span> | </span>
+            <button id="ShowLogButton">SHOW LOG</button>
+            <span> | </span>
+            <button id="ShowStatsButton">SHOW STATS</button>
+        </div>
 
         <hr/>
         <h2>
@@ -211,9 +152,91 @@
 
         <section id="LibraryList"></section>
 
-        <hr/>
+        <section id="DialogsContainer" >
 
-        <h2>LOG:</h2>
-        <section id="LogOutput"></section>
+            <dialog id="DialogBackendData" >
+                <table>
+                    <tbody>
+                        <tr>
+                            <div>
+                                <th>TrackID:</th>
+                                <td id="BackendData_TrackID"></td>
+                            </div>
+                        </tr>
+                        <tr>
+                            <div>
+                                <th>Duration:</th>
+                                <td id="BackendData_Duration"></td>
+                            </div>
+                        </tr>
+                        <tr>
+                            <div>
+                                <th>Mimetype:</th>
+                                <td id="BackendData_Mimetype"></td>
+                            </div>
+                        </tr>
+                        <tr>
+                            <div>
+                                <th>Size:</th>
+                                <td id="BackendData_Size"></td>
+                            </div>
+                        </tr>
+                        <tr>
+                            <div>
+                                <th>Replay gain:</th>
+                                <td id="BackendData_ReplayGain"></td>
+                            </div>
+                        </tr>
+                        <tr>
+                            <div>
+                                <th>Applied gain:</th>
+                                <td id="BackendData_AppliedGain"></td>
+                            </div>
+                        </tr>
+                        <tr>
+                            <div>
+                                <!-- https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/readyState -->
+                                <th>Ready state:</th>
+                                <td id="BackendData_ReadyState"></td>
+                            </div>
+                        </tr>
+                        <tr>
+                            <div>
+                                <th>Media state:</th>
+                                <td id="BackendData_MediaState"></td>
+                            </div>
+                        </tr>
+                        <tr>
+                            <div>
+                                <!-- https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/networkState -->
+                                <th>Network state:</th>
+                                <td id="BackendData_NetworkState"></td>
+                            </div>
+                        </tr>
+                        <tr>
+                            <div>
+                                <th>Buffered until:</th>
+                                <td id="BackendData_BufferUntil"></td>
+                            </div>
+                        </tr>
+                        <tr>
+                            <div>
+                                <th>Buffer (ranges):</th>
+                                <td id="BackendData_Buffer"></td>
+                            </div>
+                        </tr>
+                    </tbody>
+                </table>
+                <p>
+                    <button id="CloseBackendDataDialog" >CLOSE</button>
+                </p>
+            </dialog>
+
+            <dialog id="DialogLog" >
+                <p>LOG <button id="CloseDialogLog">CLOSE</button></p>
+                <section id="LogOutput"></section>
+            </dialog>
+
+        </section>
     </body>
 </html>
