@@ -335,17 +335,33 @@ export class UI_Controller {
         // Dialogs
 
         this.elements.DialogPlaylistShowButton.addEventListener("click", ()=> {
-            this.elements.DialogPlaylist.showModal();
+            if (this.elements.DialogPlaylist.showModal)
+                this.elements.DialogPlaylist.showModal();
+            else if (this.elements.DialogPlaylist.show)
+                this.elements.DialogPlaylist.show();
+            else
+                this.elements.DialogPlaylist.style.display = "block";
         });
         this.elements.DialogPlaylistCloseButton.addEventListener("click", ()=> {
-            this.elements.DialogPlaylist.close();
+            if (this.elements.DialogPlaylist.close)
+                this.elements.DialogPlaylist.close();
+            else
+                this.elements.DialogPlaylist.style.display = "none";
         });
 
         this.elements.DialogLogShowButton.addEventListener("click", ()=> {
-            this.elements.DialogLog.showModal();
+            if (this.elements.DialogLog.showModal)
+                this.elements.DialogLog.showModal();
+            else if (this.elements.DialogLog.show)
+                this.elements.DialogLog.show();
+            else
+                this.elements.DialogLog.style.display = "block";
         });
         this.elements.DialogLogCloseButton.addEventListener("click", ()=> {
-            this.elements.DialogLog.close();
+            if (this.elements.DialogLog.close)
+                this.elements.DialogLog.close();
+            else
+                this.elements.DialogLog.style.display = "none";
         });
 
         this.elements.DialogBackendDataShowButton.addEventListener("click", ()=> {
@@ -353,10 +369,18 @@ export class UI_Controller {
             this.elements.BackendData_ReadyState.textContent = READY_STATE[player.audioElement.readyState];
             this.elements.BackendData_NetworkState.textContent = NETWORK_STATE[player.audioElement.networkState];
 
-            this.elements.DialogBackendData.showModal();
+            if (this.elements.DialogBackendData.showModal)
+                this.elements.DialogBackendData.showModal();
+            else if (this.elements.DialogBackendData.show)
+                this.elements.DialogBackendData.show();
+            else
+                this.elements.DialogBackendData.style.display = "block";
         });
         this.elements.DialogBackendDataCloseButton.addEventListener("click", ()=> {
-            this.elements.DialogBackendData.close();
+            if (this.elements.DialogBackendData.close)
+                this.elements.DialogBackendData.close();
+            else
+                this.elements.DialogBackendData.style.display = "none";
         });
 
         console.log("UI Controller: event handlers attached");

@@ -7,12 +7,6 @@ import { UI_Controller } from "./UI_Controller.js";
 import { PlayList } from "./Playlist.js";
 import { IndexManager } from "./IndexManager.js";
 
-/* Config
-	{
-		BackendEntryPoint: string
-	}
-*/
-
 const Config = await fetch("Data/Config.json", {cache: "no-store", mode: "same-origin", method: "GET", redirect: "error", headers: {"Accept": "application/json"}})
 .then(response=> response.json())
 .catch(error=>
@@ -57,7 +51,6 @@ if (window.location.href.indexOf("?DevMode=1") > -1)
 
 	window.DevMode = true;
 }
-
 
 UIController.init();
 

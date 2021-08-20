@@ -42,28 +42,140 @@
     </head>
 
     <body>
-        <dialog id="DialogPlaylist">
+        <section id="DialogsContainer" >
 
-            <section id="Playlist">
-                <div id="PlaylistHeader">
-                    <i class="fas fa-stream" style="color: green" ></i>
-                    :&nbsp;
-                    <i id="ShowHidePlayList" class="fas fa-eye-slash"></i>
-                    &nbsp;-&nbsp;
-                    <i id="ClearPlaylist" class="fas fa-ban"></i>
-                    &nbsp;-&nbsp;
-                    <span>
-                        <i class="fas fa-random"></i>
-                        <input id="ShufflePlaylist" type="checkbox" />
-                    </span>
-                    &nbsp;-&nbsp;
-                    <button id="CloseDialogPlaylist" >CLOSE</button>
+            <!-- <div id="DialogPlaylist" class="modal">
+
+                <div class="modal-content">
+                    <span id="CloseDialogPlaylist" class="close">&times;</span>
+
+                    <section id="Playlist">
+                        <div id="PlaylistHeader">
+                            <i class="fas fa-stream" style="color: green" ></i>
+                            :&nbsp;
+                            <i id="ShowHidePlayList" class="fas fa-eye-slash"></i>
+                            &nbsp;-&nbsp;
+                            <i id="ClearPlaylist" class="fas fa-ban"></i>
+                            &nbsp;-&nbsp;
+                            <span>
+                                <i class="fas fa-random"></i>
+                                <input id="ShufflePlaylist" type="checkbox" />
+                            </span>
+                        </div>
+                        <hr/>
+                        <div id="PlaylistBody" style="display: block;" ></div>
+                    </section>
                 </div>
-                <hr/>
-                <div id="PlaylistBody" style="display: block;" ></div>
-            </section>
 
-        </dialog>
+            </div> -->
+
+            <dialog id="DialogPlaylist">
+
+                <section id="Playlist">
+                    <div id="PlaylistHeader">
+                        <i class="fas fa-stream" style="color: green" ></i>
+                        :&nbsp;
+                        <i id="ShowHidePlayList" class="fas fa-eye-slash"></i>
+                        &nbsp;-&nbsp;
+                        <i id="ClearPlaylist" class="fas fa-ban"></i>
+                        &nbsp;-&nbsp;
+                        <span>
+                            <i class="fas fa-random"></i>
+                            <input id="ShufflePlaylist" type="checkbox" />
+                        </span>
+                        &nbsp;-&nbsp;
+                        <button id="CloseDialogPlaylist" >CLOSE</button>
+                    </div>
+                    <hr/>
+                    <div id="PlaylistBody" style="display: block;" ></div>
+                </section>
+
+            </dialog>
+
+            <dialog id="DialogBackendData" >
+                <table>
+                    <tbody>
+                        <tr>
+                            <div>
+                                <th>TrackID:</th>
+                                <td id="BackendData_TrackID"></td>
+                            </div>
+                        </tr>
+                        <tr>
+                            <div>
+                                <th>Duration:</th>
+                                <td id="BackendData_Duration"></td>
+                            </div>
+                        </tr>
+                        <tr>
+                            <div>
+                                <th>Mimetype:</th>
+                                <td id="BackendData_Mimetype"></td>
+                            </div>
+                        </tr>
+                        <tr>
+                            <div>
+                                <th>Size:</th>
+                                <td id="BackendData_Size"></td>
+                            </div>
+                        </tr>
+                        <tr>
+                            <div>
+                                <th>Replay gain:</th>
+                                <td id="BackendData_ReplayGain"></td>
+                            </div>
+                        </tr>
+                        <tr>
+                            <div>
+                                <th>Applied gain:</th>
+                                <td id="BackendData_AppliedGain"></td>
+                            </div>
+                        </tr>
+                        <tr>
+                            <div>
+                                <!-- https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/readyState -->
+                                <th>Ready state:</th>
+                                <td id="BackendData_ReadyState"></td>
+                            </div>
+                        </tr>
+                        <tr>
+                            <div>
+                                <th>Media state:</th>
+                                <td id="BackendData_MediaState"></td>
+                            </div>
+                        </tr>
+                        <tr>
+                            <div>
+                                <!-- https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/networkState -->
+                                <th>Network state:</th>
+                                <td id="BackendData_NetworkState"></td>
+                            </div>
+                        </tr>
+                        <tr>
+                            <div>
+                                <th>Buffered until:</th>
+                                <td id="BackendData_BufferUntil"></td>
+                            </div>
+                        </tr>
+                        <tr>
+                            <div>
+                                <th>Buffer (ranges):</th>
+                                <td id="BackendData_Buffer"></td>
+                            </div>
+                        </tr>
+                    </tbody>
+                </table>
+                <p>
+                    <button id="CloseBackendDataDialog" >CLOSE</button>
+                </p>
+            </dialog>
+
+            <dialog id="DialogLog" >
+                <p>LOG <button id="CloseDialogLog">CLOSE</button></p>
+                <section id="LogOutput"></section>
+            </dialog>
+
+        </section>
 
         <div><audio id="Player" controls ></audio></div>
 
@@ -151,92 +263,5 @@
         <br/>
 
         <section id="LibraryList"></section>
-
-        <section id="DialogsContainer" >
-
-            <dialog id="DialogBackendData" >
-                <table>
-                    <tbody>
-                        <tr>
-                            <div>
-                                <th>TrackID:</th>
-                                <td id="BackendData_TrackID"></td>
-                            </div>
-                        </tr>
-                        <tr>
-                            <div>
-                                <th>Duration:</th>
-                                <td id="BackendData_Duration"></td>
-                            </div>
-                        </tr>
-                        <tr>
-                            <div>
-                                <th>Mimetype:</th>
-                                <td id="BackendData_Mimetype"></td>
-                            </div>
-                        </tr>
-                        <tr>
-                            <div>
-                                <th>Size:</th>
-                                <td id="BackendData_Size"></td>
-                            </div>
-                        </tr>
-                        <tr>
-                            <div>
-                                <th>Replay gain:</th>
-                                <td id="BackendData_ReplayGain"></td>
-                            </div>
-                        </tr>
-                        <tr>
-                            <div>
-                                <th>Applied gain:</th>
-                                <td id="BackendData_AppliedGain"></td>
-                            </div>
-                        </tr>
-                        <tr>
-                            <div>
-                                <!-- https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/readyState -->
-                                <th>Ready state:</th>
-                                <td id="BackendData_ReadyState"></td>
-                            </div>
-                        </tr>
-                        <tr>
-                            <div>
-                                <th>Media state:</th>
-                                <td id="BackendData_MediaState"></td>
-                            </div>
-                        </tr>
-                        <tr>
-                            <div>
-                                <!-- https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/networkState -->
-                                <th>Network state:</th>
-                                <td id="BackendData_NetworkState"></td>
-                            </div>
-                        </tr>
-                        <tr>
-                            <div>
-                                <th>Buffered until:</th>
-                                <td id="BackendData_BufferUntil"></td>
-                            </div>
-                        </tr>
-                        <tr>
-                            <div>
-                                <th>Buffer (ranges):</th>
-                                <td id="BackendData_Buffer"></td>
-                            </div>
-                        </tr>
-                    </tbody>
-                </table>
-                <p>
-                    <button id="CloseBackendDataDialog" >CLOSE</button>
-                </p>
-            </dialog>
-
-            <dialog id="DialogLog" >
-                <p>LOG <button id="CloseDialogLog">CLOSE</button></p>
-                <section id="LogOutput"></section>
-            </dialog>
-
-        </section>
     </body>
 </html>
