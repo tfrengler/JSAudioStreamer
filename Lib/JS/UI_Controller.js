@@ -326,6 +326,12 @@ export class UI_Controller {
         events.manager.subscribe(events.types.PLAYLIST_TRACKS_ADDED, this._onTracksAddedToPlaylist.bind(this));
         events.manager.subscribe(events.types.PLAYLIST_TRACKS_REMOVED, this._onTracksRemovedFromPlaylist.bind(this));
 
+        events.manager.subscribe(events.types.PLAYLIST_SHUFFLED, (eventData)=>
+        {
+            Array.from(this.elements.UI_Playlist.children).forEach(element=> element.remove());
+            this._onTracksAddedToPlaylist({added: eventData.list});
+        });
+
         /* Index */
         events.manager.subscribe(events.types.INDEX_MANAGER_INDICES_BUILT, function() {
             this.elements.UI_LibrarySearchText.readOnly = false;

@@ -24,6 +24,7 @@ const EventTypes = Object.freeze({
 	"MEDIA_CONTROLLER_STREAM_URL_UNREACHABLE": Symbol("MEDIA_CONTROLLER_STREAM_URL_UNREACHABLE"), //  {streamURL: string, retry: number}
 	"PLAYLIST_TRACKS_ADDED": Symbol("PLAYLIST_TRACKS_ADDED"), // {list: [], added: []}
 	"PLAYLIST_TRACKS_REMOVED": Symbol("PLAYLIST_TRACKS_REMOVED"), // {list: [], removed: []}
+	"PLAYLIST_SHUFFLED": Symbol("PLAYLIST_SHUFFLED"), // {list: []}
 	"ERROR": Symbol("ERROR") // new Error()
 });
 

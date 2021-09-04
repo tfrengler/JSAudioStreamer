@@ -8,8 +8,7 @@ export class PlayList {
         this.events = this.services.get("events") || Object.freeze({manager: {trigger() {console.warn("PLAYLIST EVENTS: No event service provided")}}, types: {}});
         this.list = [];
         this.currentIndex = 0;
-        this.previouslyPlayed = [];
-        this.randomize = false;
+        this.beforeShuffleList = [];
 
         console.log("Playlist initialized");
         return Object.seal(this);
@@ -101,34 +100,19 @@ export class PlayList {
         return Array.from(this.list);
     }
 
-    shuffle(enable) {
-        this.randomize = enable;
-        if (enable && this.previouslyPlayed.length) this.previouslyPlayed = [];
-    }
+    shuffle(enable)
+    {
+        if (enable)
+        {
+            this.beforeShuffleList = JSUtils.deepClone(this.list);
+            JSUtils.shuffleArray(this.list);
 
-    getRandom() {
-        let nextTrackID = null;
-        let playedRecently = true;
-        let maxIterations = 10;
-        let iteration = 1;
-        let previouslyPlayedLength = (this.list.length < 10 ? 3 : 10);
-
-        while(playedRecently) {
-            if (iteration > maxIterations)
-                break;
-
-            nextTrackID = this.list[ JSUtils.randomRange(0, this.list.length-1) ];
-            playedRecently = this.previouslyPlayed.indexOf(nextTrackID) > -1;
-            
-            iteration++;
+            this.events.manager.trigger(this.events.types.PLAYLIST_SHUFFLED, {list: this.list});
+            return;
         }
 
-        this.previouslyPlayed.push(nextTrackID);
-
-        if (this.previouslyPlayed.length > previouslyPlayedLength)
-            this.previouslyPlayed.shift();
-
-        localStorage.setItem("currentTrack", nextTrackID);
-        return nextTrackID;
+        this.list = this.beforeShuffleList;
+        this.beforeShuffleList = null;
+        this.events.manager.trigger(this.events.types.PLAYLIST_SHUFFLED, {list: this.list});
     }
 }
