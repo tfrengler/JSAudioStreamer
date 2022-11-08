@@ -11,23 +11,40 @@
 export const BaseClass = Object.create(null);
 
 BaseClass.defineProperty = () => { throw new Error("Properties cannot be redefined on object"); }
-BaseClass.deleteProperty = () => { throw new Error("Properties cannot be deleted on object"); }
+
+BaseClass.deleteProperty = function(target, property)
+{
+    if (this.has(target, property))
+        throw new Error("Object does not contain public property with name: " + property);
+
+    target[property] = null;
+    return true;
+}
+
+// BaseClass.getOwnPropertyDescriptor = function(target, prop) {
+//     return {
+//         enumerable: true,
+//         configurable: false
+//     };
+// }
 
 BaseClass.get = function(target, property, receiver)
 {
-    if (!target[property] || property[0] === "_")
-        throw new Error("No such property in object: " + property);
+    if (!this.has(target, property))
+        throw new Error("Object does not contain public property with name: " + property);
 
-    if (typeof(target[property]) === typeof(Function))
-        return target[property].bind(target);
+    let ReturnData = Reflect.get(target, property, receiver);
 
-    return Reflect.get(target, property, receiver);
+    if (typeof(ReturnData) === typeof(Function))
+        return ReturnData.bind(target);
+
+    return ReturnData;
 }
 
 BaseClass.has = function(target, key)
 {
     if (key[0] === '_') return false;
-    return key in target;
+    return Reflect.has(target, key);
 }
 
 BaseClass.ownKeys = function(target)
@@ -35,12 +52,12 @@ BaseClass.ownKeys = function(target)
     return Reflect.ownKeys(target).filter(property => property[0] !== "_");
 }
 
-BaseClass.set = function(target, property, receiver)
+BaseClass.set = function(target, property, value, receiver)
 {
-    if (!target[property] || property[0] === "_")
-        throw new Error("No such property in object: " + property);
+    if (!this.has(target, property))
+        throw new Error("Object does not contain public property with name: " + key);
 
-    return Reflect.set(target, property, receiver);
+    return Reflect.set(target, property, value, receiver);
 }
 
 BaseClass.setPrototypeOf = () => { throw new Error("Illegal operation") };
