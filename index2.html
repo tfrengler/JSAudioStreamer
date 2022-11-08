@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+
+    <head>
+        <title>FrenglerAMP</title>
+        <meta content="text/html; charset=utf-8" http-equiv="Content-Type" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+
+        <link rel="stylesheet" href="Lib/JS/fontawesome-free-5.13.1-web/css/all.min.css" />
+        <link rel="stylesheet" href="Lib/CSS/main.css" />
+
+    </head>
+
+    <body>
+        <main id="MainContent">
+            <section id="Menu" >MENU</section>
+
+            <section id="CurrentTrack" class="center-content">
+                <div id="AlbumImageWrapper">
+                    <img src="music.jpg"/><br/>
+                </div>
+                <div>Some artist</div>
+                <div>Some song</div>
+                <div>Some album (9999)</div>
+            </section>
+
+            <section id="Controls1">
+                <section>PLAY</section>
+                <section>PAUSE</section>
+                <section><input type="range" id="volume" min="0" max="100"></section>
+            </section>
+
+            <section id="Controls2">
+                <span>PREVIOUS</span>
+                <progress max="100" value="30" ></progress>
+                <span>NEXT</span>
+            </section>
+        </main>
+    </body>
+</html>
+
+<style>
+
+    #MainContent {
+        display: grid;
+    }
+
+    #MainContent > section {
+        padding: 1rem;
+        border-radius: 1rem;
+        box-shadow: 10px 5px 5px grey;
+    }
+
+    #Menu {
+        background-color: brown;
+        color:white;
+    }
+
+    #CurrentTrack {
+        background-color: blue;
+        color:white;
+    }
+
+    #CurrentTrack img {
+        max-width: 10rem;
+    }
+
+    #Controls1 {
+        background-color: blueviolet;
+        color:white;
+    }
+
+    #Controls2 {
+        background-color: red;
+        color:white;
+    }
+
+    #AlbumImageWrapper {
+        border-style: solid;
+        border-width: 0.1rem;
+        border-color: white;
+        border-radius: 1rem;
+        padding: 0.5rem;
+    }
+
+    /* Utils */
+
+    .center-content {
+        text-align: center;
+    }
+
+    @media (min-width: 1000px)
+    {
+        #MainContent {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 2rem;
+        }
+
+        #Menu {
+            color:white;
+            grid-column: span 4;
+        }
+        #CurrentTrack {
+            color:white;
+            grid-column: 2;
+        }
+        #Controls2 {
+            grid-row: 3;
+            grid-column: 2 / 4;
+        }
+    }
+
+    @media (max-width: 1000px)
+    {
+        #MainContent {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+
+        #Menu {
+            grid-column: span 2;
+        }
+        #Controls2 {
+            grid-column: span 2;
+        }
+    }
+</style>
